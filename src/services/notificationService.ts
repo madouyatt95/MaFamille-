@@ -5,6 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { FCM } from '@capacitor-community/fcm';
+import { APP_SERVICE_WORKER_URL } from '../config/serviceWorker';
 
 type InitializeFCMOptions = {
   requestPermission?: boolean;
@@ -135,8 +136,10 @@ export const notificationService = {
     if (!this.isSupported()) return null;
 
     try {
-      const swUrl = '/sw.js?v=20260625-landing';
-      const registration = await navigator.serviceWorker.register(swUrl, {
+      const existing = await navigator.serviceWorker.getRegistration('/');
+      if (existing?.active?.scriptURL.includes('/sw.js')) return existing;
+
+      const registration = await navigator.serviceWorker.register(APP_SERVICE_WORKER_URL, {
         scope: '/',
         updateViaCache: 'none',
       });

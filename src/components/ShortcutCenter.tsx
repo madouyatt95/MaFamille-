@@ -158,7 +158,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
   onTestQuickAction
 }) => {
   const [activeTab, setActiveTab] = useState<ShortcutGuideTab>('actions');
-  const [expandedShortcut, setExpandedShortcut] = useState<QuickActionId>('open-micro');
+  const [expandedShortcut, setExpandedShortcut] = useState<QuickActionId | null>('open-micro');
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const [preferences, setPreferences] = useState<QuickActionPreferences>(getQuickActionPreferences);
   const [history, setHistory] = useState(getQuickActionHistory);
@@ -276,7 +276,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
           </button>
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-lg font-black text-white">Raccourcis MyFamily+</h2>
-            <p className="truncate text-[11px] font-medium text-white/45">Choisissez une action, puis où la déclencher.</p>
+            <p className="truncate text-[11px] font-medium text-white/45">Lancez une fonction sans chercher dans l’application.</p>
           </div>
           <span className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase ${isNativeApp ? 'bg-[#00D26A]/15 text-[#00D26A]' : 'bg-[#6C5CFF]/15 text-[#9E94FF]'}`}>
             {isNativeApp ? 'iPhone natif' : 'Web'}
@@ -301,12 +301,26 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
           </div>
         </section>
 
+        <section className="grid grid-cols-3 gap-2" aria-label="Étapes de configuration">
+          {[
+            ['1', 'Choisir', 'Ce que MyFamily+ doit faire'],
+            ['2', 'Essayer', 'Vérifier le résultat'],
+            ['3', 'Installer', 'Siri, Wallet, bouton ou NFC']
+          ].map(([number, title, detail]) => (
+            <div key={number} className="min-w-0 rounded-xl border border-white/7 bg-white/[0.03] p-2.5 text-center">
+              <span className="mx-auto grid h-5 w-5 place-items-center rounded-full bg-[#6C5CFF]/16 text-[9px] font-black text-[#9E94FF]">{number}</span>
+              <strong className="mt-1.5 block text-[10px] text-white">{title}</strong>
+              <small className="mt-1 block text-[8px] leading-tight text-white/35">{detail}</small>
+            </div>
+          ))}
+        </section>
+
         <nav className="grid grid-cols-2 gap-1 rounded-2xl border border-white/8 bg-white/[0.035] p-1 sm:grid-cols-4" aria-label="Sections des raccourcis">
           {([
-            ['actions', 'Actions', ScanLine],
-            ['iphone', 'Sur iPhone', Smartphone],
-            ['nfc', 'Tags NFC', Nfc],
-            ['preferences', 'Préférences', Wallet]
+            ['actions', 'Choisir', ScanLine],
+            ['iphone', 'Installer', Smartphone],
+            ['nfc', 'Avec un tag', Nfc],
+            ['preferences', 'Mes choix', Wallet]
           ] as const).map(([id, label, Icon]) => (
             <button
               key={id}
@@ -323,8 +337,8 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
         {activeTab === 'actions' && (
           <section className="space-y-3">
             <div className="px-1">
-              <h3 className="text-sm font-black text-white">Les actions disponibles</h3>
-              <p className="mt-1 text-[11px] leading-relaxed text-white/45">Touchez une action pour voir sa phrase Siri, la tester ou copier son lien direct.</p>
+              <h3 className="text-sm font-black text-white">Que voulez-vous faire ?</h3>
+              <p className="mt-1 text-[11px] leading-relaxed text-white/45">Choisissez une fonction. Vous pourrez d’abord l’essayer, puis décider comment la lancer.</p>
             </div>
 
             <div className="rounded-[22px] border border-white/8 bg-white/[0.035] p-3">
@@ -375,7 +389,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                 <article key={shortcut.id} className="overflow-hidden rounded-[22px] border border-white/8 bg-white/[0.035]">
                   <button
                     type="button"
-                    onClick={() => setExpandedShortcut(shortcut.id)}
+                    onClick={() => setExpandedShortcut(current => current === shortcut.id ? null : shortcut.id)}
                     className="flex w-full items-center gap-3 p-4 text-left"
                     aria-expanded={isExpanded}
                   >
@@ -393,7 +407,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                     <div className="space-y-3 border-t border-white/7 px-4 pb-4 pt-3">
                       <div className="rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 p-3">
                         <span className="flex items-center gap-1.5 text-[9px] font-black uppercase text-[#9E94FF]">
-                          <MessageCircleMore className="h-3.5 w-3.5" /> Phrase Siri
+                          <MessageCircleMore className="h-3.5 w-3.5" /> À dire à Siri
                         </span>
                         <div className="mt-2 flex items-center gap-2">
                           <strong className="min-w-0 flex-1 text-[11px] leading-relaxed text-white">« {shortcut.phrase} »</strong>
@@ -416,7 +430,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                           disabled={!onTestQuickAction}
                           className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#6C5CFF] px-3 text-[10px] font-black text-white transition active:scale-[0.98] disabled:opacity-40"
                         >
-                          <ClipboardCheck className="h-4 w-4" /> Tester maintenant
+                          <ClipboardCheck className="h-4 w-4" /> Essayer l’action
                         </button>
                         <button
                           type="button"
@@ -438,8 +452,8 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
         {activeTab === 'iphone' && (
           <section className="space-y-3">
             <div className="px-1">
-              <h3 className="text-sm font-black text-white">Choisir où lancer l’action</h3>
-              <p className="mt-1 text-[11px] leading-relaxed text-white/45">Commencez par ouvrir l’application une fois après chaque nouvelle installation.</p>
+              <h3 className="text-sm font-black text-white">Comment voulez-vous la lancer ?</h3>
+              <p className="mt-1 text-[11px] leading-relaxed text-white/45">Ouvrez MyFamily+ une première fois, puis choisissez la méthode qui vous convient.</p>
             </div>
 
             <article className={`overflow-hidden rounded-[24px] border p-4 ${focusWalletSetup ? 'border-[#00D26A]/35 bg-[#00D26A]/8 shadow-[0_16px_40px_rgba(0,210,106,0.08)]' : 'border-white/8 bg-white/[0.035]'}`}>
@@ -635,8 +649,8 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
         {activeTab === 'nfc' && (
           <section className="space-y-3">
             <div className="px-1">
-              <h3 className="text-sm font-black text-white">Programmer un tag NFC</h3>
-              <p className="mt-1 text-[11px] leading-relaxed text-white/45">Un tag peut ouvrir instantanément une action depuis la cuisine, le portefeuille ou un bureau.</p>
+              <h3 className="text-sm font-black text-white">Lancer une action avec un autocollant NFC</h3>
+              <p className="mt-1 text-[11px] leading-relaxed text-white/45">Approchez l’iPhone d’un tag placé dans la cuisine, le portefeuille ou près de l’entrée.</p>
             </div>
 
             <div className="rounded-[22px] border border-white/8 bg-white/[0.035] p-4">
@@ -660,7 +674,8 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                     </span>
                     <span className="min-w-0 flex-1">
                       <strong className="block text-xs text-white">{shortcut.label}</strong>
-                      <small className="mt-0.5 block truncate text-[9px] text-white/35">{quickActionLink(shortcut.id)}</small>
+                      <small className="mt-1 block text-[8px] font-bold uppercase tracking-wider text-white/30">Lien à coller dans Raccourcis</small>
+                      <code className="mt-1 block break-all whitespace-normal text-[9px] font-medium leading-relaxed text-white/55">{quickActionLink(shortcut.id)}</code>
                     </span>
                     <div className="flex shrink-0 gap-1.5">
                       {isNativeApp && (
@@ -676,10 +691,11 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                       <button
                         type="button"
                         onClick={() => void copyValue(quickActionLink(shortcut.id), `link-${shortcut.id}`)}
-                        className="grid h-10 w-10 place-items-center rounded-xl border border-white/8 bg-white/5 text-white/55"
+                        className="flex h-10 items-center gap-1.5 rounded-xl border border-white/8 bg-white/5 px-3 text-[9px] font-black text-white/65"
                         aria-label={`Copier le lien NFC ${shortcut.label}`}
                       >
                         {copiedValue === `link-${shortcut.id}` ? <CheckCircle2 className="h-4 w-4 text-[#00D26A]" /> : <Copy className="h-4 w-4" />}
+                        {copiedValue === `link-${shortcut.id}` ? 'Copié' : 'Copier'}
                       </button>
                     </div>
                   </div>

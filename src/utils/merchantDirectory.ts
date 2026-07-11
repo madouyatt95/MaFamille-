@@ -104,8 +104,13 @@ export const findMerchantBrand = (merchant: string): MerchantBrand | null => {
   const exactMatches = MERCHANT_BRANDS.flatMap((brand) => (
     [brand.name, ...brand.aliases]
       .map(normalizeMerchantText)
-      .filter((candidate) => normalized === candidate || normalized.includes(candidate) || candidate.includes(normalized))
-      .map((candidate) => ({ brand, score: candidate.length }))
+      .map((candidate) => {
+        if (normalized === candidate) return { brand, score: 3000 + candidate.length };
+        if (normalized.includes(candidate)) return { brand, score: 2000 + candidate.length };
+        if (candidate.includes(normalized)) return { brand, score: 1000 + normalized.length - (candidate.length - normalized.length) };
+        return null;
+      })
+      .filter((candidate): candidate is { brand: MerchantBrand; score: number } => candidate !== null)
   )).sort((left, right) => right.score - left.score);
   if (exactMatches[0]) return exactMatches[0].brand;
 

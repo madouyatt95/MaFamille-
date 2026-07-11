@@ -75,7 +75,7 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // PARTIE CACHING PWA
-const CACHE_NAME = 'myfamily-plus-cache-v8-app-entry';
+const CACHE_NAME = 'myfamily-plus-cache-v9-stable-notifications';
 const ASSETS_TO_CACHE = [
   '/',
   '/app',
@@ -87,7 +87,42 @@ const ASSETS_TO_CACHE = [
   '/icon-192x192.png',
   '/icon-512x512.png',
   '/icon-maskable-192x192.png',
-  '/icon-maskable-512x512.png'
+  '/icon-maskable-512x512.png',
+  '/merchant-logos/carrefour.svg',
+  '/merchant-logos/leclerc.svg',
+  '/merchant-logos/auchan.svg',
+  '/merchant-logos/intermarche.svg',
+  '/merchant-logos/lidl.svg',
+  '/merchant-logos/aldi.svg',
+  '/merchant-logos/monoprix.svg',
+  '/merchant-logos/franprix.svg',
+  '/merchant-logos/picard.svg',
+  '/merchant-logos/mcdonalds.svg',
+  '/merchant-logos/burger-king.svg',
+  '/merchant-logos/kfc.svg',
+  '/merchant-logos/starbucks.svg',
+  '/merchant-logos/amazon.svg',
+  '/merchant-logos/fnac.svg',
+  '/merchant-logos/ikea.svg',
+  '/merchant-logos/leroy-merlin.svg',
+  '/merchant-logos/decathlon.svg',
+  '/merchant-logos/sncf.svg',
+  '/merchant-logos/uber.svg',
+  '/merchant-logos/bolt.svg',
+  '/merchant-logos/totalenergies.svg',
+  '/merchant-logos/esso.svg',
+  '/merchant-logos/orange.svg',
+  '/merchant-logos/orange-money.svg',
+  '/merchant-logos/free.svg',
+  '/merchant-logos/free-money.svg',
+  '/merchant-logos/sfr.svg',
+  '/merchant-logos/netflix.svg',
+  '/merchant-logos/spotify.svg',
+  '/merchant-logos/apple.svg',
+  '/merchant-logos/glovo.svg',
+  '/merchant-logos/wave.svg',
+  '/merchant-logos/jumia.svg',
+  '/merchant-logos/air-senegal.svg'
 ];
 
 const SHARE_DB_NAME = 'myfamily-plus-share-target';
