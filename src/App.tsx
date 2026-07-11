@@ -14186,7 +14186,7 @@ function App() {
       if (activeModule === 'mavie') return standaloneModule(<MaVieSimulator />);
       if (activeModule === 'conteur') return standaloneModule(<ConteurIA onBack={() => setActiveModule('')} members={appMembers} isPremium={isPremium} onTriggerPaywall={() => setPaywallOpen(true)} />);
       if (activeModule === 'contacts') return standaloneModule(<ContactsImportants canManage={canManageFamily} />);
-      if (activeModule === 'racines') return standaloneModule(<FamilyRoots
+      if (activeModule === 'racines') return <FamilyRoots
         foyerId={appFoyer?.id}
         familyName={appFoyer?.name}
         members={appMembers}
@@ -14197,7 +14197,7 @@ function App() {
         onAddAgendaEvent={handleAddEvent}
         onCreateBranchGroup={handleCreateBranchChatGroup}
         onUpdateMemberProfile={handleUpdateMemberProfile}
-      />);
+      />;
 
       if (!activeModule) {
         return (

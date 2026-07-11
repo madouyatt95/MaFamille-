@@ -1,6 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft,
   AlertTriangle,
   Bell,
   BookOpen,
@@ -1086,7 +1085,6 @@ export function FamilyRoots({
     <div className="family-roots">
       <div className="fr-page">
         <header className="fr-header">
-          <button className="fr-icon-button" onClick={() => window.history.back()} aria-label="Retour"><ArrowLeft /></button>
           <div className="fr-title"><h1>Racines familiales <TreePine /></h1><p>Notre histoire, nos liens, nos racines</p></div>
           {canManage ? <button className="fr-icon-button" onClick={() => editingAllowed ? setModal('invite') : setReadingMode(false)} aria-label={editingAllowed ? 'Inviter une branche' : 'Quitter le mode lecture'}>{editingAllowed ? <Share2 /> : <BookOpen />}</button> : <span />}
         </header>
