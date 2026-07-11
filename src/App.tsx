@@ -212,13 +212,6 @@ const buildSharedIntakePayload = (payload: LooseValue, forced?: string | null): 
   };
 };
 
-const extractAmountFromSharedText = (text: string): number | null => {
-  const match = text.replace(',', '.').match(/(\d+(?:\.\d{1,2})?)\s*(?:€|eur|euro|euros|fcfa|xof)?/i);
-  if (!match) return null;
-  const amount = Number(match[1]);
-  return Number.isFinite(amount) && amount > 0 ? amount : null;
-};
-
 const splitSharedListItems = (text: string): string[] => (
   text
     .replace(/^(ajoute|acheter|courses|liste|produits?)\s*:?/i, '')
@@ -2480,6 +2473,8 @@ function App() {
     const subCategory = params.get('subCategory') || merchantPreference?.subCategory || merchantBrand?.subCategory || 'Divers';
     const accountId = params.get('accountId') || merchantPreference?.accountId || preferences.expense.accountId || rememberedAccountId || undefined;
     const currency = (params.get('currency') || 'EUR').trim().toUpperCase();
+    const walletCard = params.get('card') || params.get('cardName') || '';
+    const paymentMethod = params.get('paymentMethod') || (params.get('source') === 'apple-wallet' ? 'Apple Pay' : 'Wallet');
     const rawDate = params.get('date') || params.get('datetime') || '';
     const parsedDate = rawDate ? new Date(rawDate) : null;
     const date = /^\d{4}-\d{2}-\d{2}/.test(rawDate)
@@ -2489,6 +2484,8 @@ function App() {
         : new Date().toISOString().slice(0, 10);
     const sourceComment = [
       'Préremplie depuis une transaction Wallet',
+      paymentMethod ? `Paiement : ${paymentMethod}` : '',
+      walletCard ? `Carte : ${walletCard}` : '',
       currency !== 'EUR' ? `Devise reçue : ${currency} (montant à vérifier)` : '',
       rawDate && parsedDate && !Number.isNaN(parsedDate.getTime())
         ? `Transaction du ${parsedDate.toLocaleString('fr-FR')}`
@@ -2527,6 +2524,8 @@ function App() {
         sourceCurrency: currency,
         sourceDateTime: parsedDate && !Number.isNaN(parsedDate.getTime()) ? rawDate : '',
         merchantRaw: rawTitle,
+        walletCard,
+        paymentMethod,
         hasLearnedRule: !!merchantPreference
       }
     });

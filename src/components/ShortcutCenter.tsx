@@ -71,8 +71,8 @@ const IPHONE_METHODS = [
     steps: [
       'Ouvrez Raccourcis, puis Automatisation et Nouvelle automatisation.',
       'Choisissez Transaction, sélectionnez la carte souhaitée et cochez Paiement.',
-      'Ajoutez l’action Ouvrir les URL avec https://myfamilyplus.fr/quick-expense.',
-      'Ajoutez les variables de la transaction dans l’URL : ?amount=Montant&merchant=Commerçant&date=Date&currency=Devise.',
+      'Ajoutez l’action MyFamily+ « Transaction Wallet vers Budget ».',
+      'Associez ses champs Montant, Commerçant, Date et heure, Devise et Carte aux informations proposées par l’automatisation Transaction.',
       'Choisissez Exécuter immédiatement. Après un paiement, vérifiez le compte et la catégorie dans MyFamily+ avant de valider.'
     ]
   },
@@ -126,6 +126,14 @@ const IPHONE_METHODS = [
       'Sur l’écran verrouillé, ajoutez MyFamily+ depuis Personnaliser pour accéder directement au micro.'
     ]
   }
+] as const;
+
+const WALLET_WEB_STEPS = [
+  'Ouvrez Raccourcis, puis Automatisation et Nouvelle automatisation.',
+  'Choisissez Transaction, sélectionnez la carte souhaitée et cochez Paiement.',
+  'Ajoutez l’action Ouvrir les URL avec https://myfamilyplus.fr/quick-expense.',
+  'Ajoutez les variables de la transaction dans l’URL : ?amount=Montant&merchant=Commerçant&date=Date&currency=Devise.',
+  'Choisissez Exécuter immédiatement. iOS ouvrira le navigateur, puis vous pourrez vérifier la dépense dans MyFamily+.'
 ] as const;
 
 const NFC_STEPS = [
@@ -414,6 +422,9 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
 
             {IPHONE_METHODS.map((method) => {
               const Icon = method.icon;
+              const steps = method.title === 'Après un paiement Apple Pay' && !isNativeApp
+                ? WALLET_WEB_STEPS
+                : method.steps;
               return (
                 <details key={method.title} className="group overflow-hidden rounded-[22px] border border-white/8 bg-white/[0.035]">
                   <summary className="flex cursor-pointer list-none items-center gap-3 p-4">
@@ -424,7 +435,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                     <ChevronRight className="h-4 w-4 text-white/30 transition group-open:rotate-90" />
                   </summary>
                   <ol className="space-y-3 border-t border-white/7 px-4 pb-4 pt-3">
-                    {method.steps.map((step, index) => (
+                    {steps.map((step, index) => (
                       <li key={step} className="flex gap-3 text-[11px] font-medium leading-relaxed text-white/55">
                         <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/7 text-[9px] font-black text-white/70">{index + 1}</span>
                         <span>{step}</span>

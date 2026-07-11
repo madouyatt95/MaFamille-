@@ -88,6 +88,48 @@ struct AddFamilyExpenseIntent: MyFamilyQuickActionIntent {
 }
 
 @available(iOS 16.0, *)
+struct ImportWalletTransactionIntent: MyFamilyQuickActionIntent {
+    static var title: LocalizedStringResource = "Transaction Wallet vers Budget"
+    static var description = IntentDescription("Ouvre le vrai formulaire Budget avec les informations du paiement Apple Pay préremplies.")
+
+    @Parameter(title: "Montant") var amount: Double?
+    @Parameter(title: "Commerçant") var merchant: String?
+    @Parameter(title: "Date et heure") var transactionDate: Date?
+    @Parameter(title: "Devise") var currency: String?
+    @Parameter(title: "Carte") var cardName: String?
+
+    init() {}
+    init(amount: Double? = nil, merchant: String? = nil, transactionDate: Date? = nil, currency: String? = nil, cardName: String? = nil) {
+        self.amount = amount
+        self.merchant = merchant
+        self.transactionDate = transactionDate
+        self.currency = currency
+        self.cardName = cardName
+    }
+
+    var actionName: String { "paid" }
+    var queryItems: [URLQueryItem] {
+        var items: [URLQueryItem] = [
+            URLQueryItem(name: "source", value: "apple-wallet"),
+            URLQueryItem(name: "paymentMethod", value: "Apple Pay")
+        ]
+        if let amount { items.append(URLQueryItem(name: "amount", value: String(amount))) }
+        if let merchant, !merchant.isEmpty { items.append(URLQueryItem(name: "merchant", value: merchant)) }
+        if let currency, !currency.isEmpty { items.append(URLQueryItem(name: "currency", value: currency.uppercased())) }
+        if let cardName, !cardName.isEmpty { items.append(URLQueryItem(name: "card", value: cardName)) }
+        if let transactionDate {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.calendar = Calendar(identifier: .gregorian)
+            formatter.timeZone = .current
+            formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXX"
+            items.append(URLQueryItem(name: "date", value: formatter.string(from: transactionDate)))
+        }
+        return items
+    }
+}
+
+@available(iOS 16.0, *)
 struct ScanFamilyReceiptIntent: MyFamilyQuickActionIntent {
     static var title: LocalizedStringResource = "Scanner un ticket"
     static var description = IntentDescription("Ouvre le scanner de ticket avec lecture locale sur l’appareil.")

@@ -332,6 +332,8 @@ export const Budget: React.FC<BudgetProps> = ({
     currency: string;
     dateTime?: string;
     merchantRaw?: string;
+    walletCard?: string;
+    paymentMethod?: string;
     hasLearnedRule?: boolean;
   } | null>(null);
   const [receiptDraftMeta, setReceiptDraftMeta] = useState<{
@@ -433,6 +435,8 @@ export const Budget: React.FC<BudgetProps> = ({
             currency: activeSubView.options?.sourceCurrency || 'EUR',
             dateTime: activeSubView.options?.sourceDateTime || undefined,
             merchantRaw: activeSubView.options?.merchantRaw || activeSubView.options?.title || undefined,
+            walletCard: activeSubView.options?.walletCard || undefined,
+            paymentMethod: activeSubView.options?.paymentMethod || undefined,
             hasLearnedRule: activeSubView.options?.hasLearnedRule === true
           } : null);
           setReceiptDraftMeta(isReceiptDraft ? {
@@ -3136,6 +3140,11 @@ export const Budget: React.FC<BudgetProps> = ({
                     </div>
                     <span className="shrink-0 rounded-xl bg-white/7 px-2.5 py-1.5 text-[10px] font-black text-white/75">{walletDraftMeta.currency}</span>
                   </div>
+                  {(walletDraftMeta.paymentMethod || walletDraftMeta.walletCard) && (
+                    <p className="mt-2 text-[10px] font-bold text-white/50">
+                      {[walletDraftMeta.paymentMethod, walletDraftMeta.walletCard].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
                   <p className="mt-3 text-[10px] font-medium leading-relaxed text-white/55">Vérifiez le montant, le compte et la catégorie. Rien ne sera enregistré avant votre validation.</p>
                   {walletDraftMeta.hasLearnedRule && <p className="mt-2 text-[9px] font-bold text-[#9E94FF]">Compte et catégorie proposés d’après vos choix précédents.</p>}
                 </div>
