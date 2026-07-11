@@ -29,14 +29,6 @@
       "destination": "/index.html"
     },
     {
-      "source": "/demo-vitrine",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/demo-vitrine/:path*",
-      "destination": "/index.html"
-    },
-    {
       "source": "/share/:path*",
       "destination": "/index.html"
     },

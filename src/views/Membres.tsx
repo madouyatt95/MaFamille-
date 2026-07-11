@@ -52,7 +52,9 @@ const getErrorMessage = (err: unknown) => err instanceof Error ? err.message : S
 
 const getInviteLink = (inviteCode: string) => {
   const baseUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
-  return `${baseUrl.replace(/\/$/, '')}/?join=${encodeURIComponent(inviteCode)}`;
+  const url = new URL('/app', `${baseUrl.replace(/\/$/, '')}/`);
+  url.searchParams.set('join', inviteCode);
+  return url.toString();
 };
 
 interface MembresProps {

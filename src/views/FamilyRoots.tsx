@@ -918,7 +918,7 @@ export function FamilyRoots({
 
   const inviteLink = (() => {
     if (!snapshot?.shareCode || typeof window === 'undefined') return '';
-    const url = new URL(window.location.href);
+    const url = new URL('/app', window.location.origin);
     url.searchParams.set('racines', '1');
     url.searchParams.set('rootCode', snapshot.shareCode);
     return url.toString();
