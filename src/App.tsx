@@ -6,7 +6,7 @@ import { Preferences } from '@capacitor/preferences';
 import type { User } from '@supabase/supabase-js';
 import { getConfiguredSupabaseAnonKey, getConfiguredSupabaseUrl } from './config/supabaseConfig';
 import { getGroceryItemEmoji } from './utils/groceryDisplay';
-import { parseHomeworkText, parseReceiptText, recognizeImageText } from './utils/localOcr';
+import { parseHomeworkText, parseReceiptText, recognizeImageDocument } from './utils/localOcr';
 import { consumeNativeQuickAction, consumeNativeSharedInbox } from './utils/nativeSharedInbox';
 import { pickNativeImage } from './utils/nativeImagePicker';
 import { getQuickActionPreferences, recordQuickActionHistory, saveQuickActionPreferences } from './utils/quickActionPreferences';
@@ -11258,14 +11258,15 @@ function App() {
     setSharedOcrLoading(true);
     setSharedOcrError('');
     try {
-      const text = await recognizeImageText(file);
+      const document = await recognizeImageDocument(file);
+      const text = document.text;
       if (!text.trim()) {
         setSharedOcrError('Aucun texte détecté. Essayez une photo plus nette.');
         return;
       }
 
       const target = sharedIntakeTarget === 'homework' ? 'homework' : sharedIntakeTarget === 'budget' ? 'budget' : guessSharedIntakeTarget({ text, files: [file] });
-      const receipt = target === 'budget' ? parseReceiptText(text) : null;
+      const receipt = target === 'budget' ? parseReceiptText(text, document.lines) : null;
       const homework = target === 'homework' ? parseHomeworkText(text) : null;
       const detectedSummary = receipt
         ? `${receipt.merchant}${receipt.amount ? ` · ${receipt.amount.toFixed(2)} €` : ''} · ${receipt.category}`
@@ -11327,25 +11328,43 @@ function App() {
 
     if (target === 'budget') {
       const receipt = parseReceiptText(combinedText);
-      const amount = receipt.amount || extractAmountFromSharedText(combinedText);
-      if (amount) {
-        await handleAddTransaction({
+      setActiveTab('budget');
+      setActiveModule('');
+      setBudgetActiveSubView({
+        type: 'transaction_form',
+        options: {
           title: receipt.merchant || sharedIntake.suggestedTitle || 'Dépense importée',
-          amount,
+          merchantRaw: receipt.merchantRaw,
+          merchantBrand: receipt.merchantBrand,
+          amount: receipt.amount || '',
           type: 'expense',
           category: receipt.category || 'Divers',
-          subCategory: 'Import rapide',
+          categorySuggestion: receipt.categorySuggestion,
+          subCategory: receipt.categorySuggestion === 'Restauration' ? 'Restaurant' : 'Import rapide',
           date: receipt.date || todayISO,
-          memberId: activeMemberId,
-          memberName: members.find(member => member.id === activeMemberId)?.name || 'Famille',
-          moduleSource: 'partage',
-          comment: `Préparé depuis un raccourci MyFamily+${combinedText ? `\n${combinedText.slice(0, 300)}` : ''}`
-        });
-        setActiveToast({ title: 'Dépense ajoutée', description: `${amount.toFixed(2)} € enregistrés depuis le partage.` });
-      } else {
-        openSharedIntakeTarget('budget');
-        setActiveToast({ title: 'Ticket reçu', description: 'Ajoutez le montant et le compte avant validation.' });
-      }
+          source: 'ocr_receipt',
+          sourceCurrency: receipt.currency,
+          sourceDateTime: receipt.time ? `${receipt.date}T${receipt.time}` : undefined,
+          paymentMethod: receipt.paymentMethod,
+          paymentMethodLabel: receipt.paymentMethodLabel,
+          amountConfidence: receipt.amountConfidence,
+          selectionReason: receipt.selectionReason,
+          alternateAmounts: receipt.alternateAmounts,
+          moduleSource: 'ocr_ticket',
+          comment: [
+            receipt.time ? `Heure : ${receipt.time.slice(0, 5)}` : '',
+            receipt.paymentMethod ? `Paiement : ${receipt.paymentMethodLabel}` : '',
+            `Enseigne brute : ${receipt.merchantRaw}`,
+            receipt.selectionReason
+          ].filter(Boolean).join('\n')
+        }
+      });
+      setActiveToast({
+        title: receipt.amount ? 'Ticket analysé' : 'Ticket à compléter',
+        description: receipt.amount
+          ? `${receipt.amount.toFixed(2)} € proposés. Vérifiez puis validez la dépense.`
+          : 'Aucun montant suffisamment fiable. Choisissez le montant avant validation.'
+      });
     } else if (target === 'homework') {
       const homework = parseHomeworkText(combinedText);
       const student = members.find(member => {

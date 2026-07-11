@@ -83,6 +83,20 @@ export const normalizeMerchantKey = (merchant: string): string => normalizeMerch
   .replace(/\s+/g, ' ')
   .trim();
 
+export const findMerchantBrandByExplicitAlias = (merchant: string): MerchantBrand | null => {
+  const normalized = normalizeMerchantKey(merchant);
+  if (!normalized) return null;
+  return MERCHANT_BRANDS
+    .flatMap(brand => [brand.name, ...brand.aliases].map(alias => ({ brand, alias: normalizeMerchantText(alias) })))
+    .filter(candidate => candidate.alias && (
+      normalized === candidate.alias
+      || normalized.startsWith(`${candidate.alias} `)
+      || normalized.endsWith(` ${candidate.alias}`)
+      || normalized.includes(` ${candidate.alias} `)
+    ))
+    .sort((left, right) => right.alias.length - left.alias.length)[0]?.brand || null;
+};
+
 export const findMerchantBrand = (merchant: string): MerchantBrand | null => {
   const normalized = normalizeMerchantKey(merchant);
   if (!normalized) return null;

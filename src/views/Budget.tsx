@@ -30,7 +30,7 @@ import { getSupabaseClient, serializeCategoryIcon, serializeTransactionComment, 
 import { DEFAULT_CATEGORIES } from '../data/budgetCategories';
 import { compressImageToBlob, isDataUrl, isRemoteUrl, uploadBlobToStorage } from '../utils/imageCompressor';
 import { MerchantLogo } from '../components/MerchantLogo';
-import { cleanMerchantName, findMerchantBrand, normalizeMerchantKey, saveMerchantPreference } from '../utils/merchantDirectory';
+import { cleanMerchantName, findMerchantBrand, findMerchantBrandByExplicitAlias, normalizeMerchantKey, saveMerchantPreference } from '../utils/merchantDirectory';
 
 const BudgetExport = lazy(() => import('./BudgetExport').then(module => ({ default: module.BudgetExport })));
 const BudgetImport = lazy(() => import('./BudgetImport').then(module => ({ default: module.BudgetImport })));
@@ -334,6 +334,17 @@ export const Budget: React.FC<BudgetProps> = ({
     merchantRaw?: string;
     hasLearnedRule?: boolean;
   } | null>(null);
+  const [receiptDraftMeta, setReceiptDraftMeta] = useState<{
+    merchantRaw?: string;
+    merchantBrand?: string | null;
+    paymentMethod?: string | null;
+    paymentMethodLabel?: string;
+    categorySuggestion?: string;
+    amountConfidence?: string;
+    selectionReason?: string;
+    alternateAmounts: number[];
+    dateTime?: string;
+  } | null>(null);
   const [rememberMerchantRule, setRememberMerchantRule] = useState(false);
 
   const [catForm, setCatForm] = useState({
@@ -417,11 +428,23 @@ export const Budget: React.FC<BudgetProps> = ({
             comment: activeSubView.options?.comment || ''
           });
           const isWalletDraft = activeSubView.options?.source === 'wallet';
+          const isReceiptDraft = activeSubView.options?.source === 'ocr_receipt';
           setWalletDraftMeta(isWalletDraft ? {
             currency: activeSubView.options?.sourceCurrency || 'EUR',
             dateTime: activeSubView.options?.sourceDateTime || undefined,
             merchantRaw: activeSubView.options?.merchantRaw || activeSubView.options?.title || undefined,
             hasLearnedRule: activeSubView.options?.hasLearnedRule === true
+          } : null);
+          setReceiptDraftMeta(isReceiptDraft ? {
+            merchantRaw: activeSubView.options?.merchantRaw,
+            merchantBrand: activeSubView.options?.merchantBrand || null,
+            paymentMethod: activeSubView.options?.paymentMethod || null,
+            paymentMethodLabel: activeSubView.options?.paymentMethodLabel || 'Non détecté',
+            categorySuggestion: activeSubView.options?.categorySuggestion,
+            amountConfidence: activeSubView.options?.amountConfidence,
+            selectionReason: activeSubView.options?.selectionReason,
+            alternateAmounts: Array.isArray(activeSubView.options?.alternateAmounts) ? activeSubView.options.alternateAmounts : [],
+            dateTime: activeSubView.options?.sourceDateTime
           } : null);
           setRememberMerchantRule(isWalletDraft);
           setIsTxModalOpen(true);
@@ -944,6 +967,7 @@ export const Budget: React.FC<BudgetProps> = ({
       receiptBase64: ''
     });
     setWalletDraftMeta(null);
+    setReceiptDraftMeta(null);
     setRememberMerchantRule(false);
     setIsTxModalOpen(true);
   };
@@ -965,6 +989,7 @@ export const Budget: React.FC<BudgetProps> = ({
       receiptBase64: tx.receiptUrl || tx.receiptBase64 || ''
     });
     setWalletDraftMeta(null);
+    setReceiptDraftMeta(null);
     setRememberMerchantRule(false);
     setIsTxModalOpen(true);
   };
@@ -1004,7 +1029,12 @@ export const Budget: React.FC<BudgetProps> = ({
       memberName: matchedMember?.name || 'Famille',
       date: txForm.date,
       title: txForm.title,
-      comment: txForm.comment,
+      comment: receiptDraftMeta
+        ? [
+            txForm.comment.replace(/^Paiement\s*:.*$/gim, '').trim(),
+            receiptDraftMeta.paymentMethod ? `Paiement : ${receiptDraftMeta.paymentMethodLabel || receiptDraftMeta.paymentMethod}` : ''
+          ].filter(Boolean).join('\n')
+        : txForm.comment,
       recurrence: txForm.recurrence,
       moduleSource: txForm.moduleSource,
       receiptBase64: txForm.receiptBase64
@@ -1079,7 +1109,9 @@ export const Budget: React.FC<BudgetProps> = ({
       newTxData.modificationHistory = [{ author: myMemberProfile?.displayName || 'Système', date: new Date().toISOString(), action: 'Création manuelle' }];
       
       const now = new Date();
-      newTxData.entryTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      newTxData.entryTime = receiptDraftMeta?.dateTime
+        ? new Date(receiptDraftMeta.dateTime).toTimeString().slice(0, 5)
+        : `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       newTxData.entryDate = newTxData.date;
 
       const client = getSupabaseClient();
@@ -1127,6 +1159,7 @@ export const Budget: React.FC<BudgetProps> = ({
     setIsTxModalOpen(false);
     setEditingTx(null);
     setWalletDraftMeta(null);
+    setReceiptDraftMeta(null);
     setRememberMerchantRule(false);
   };
 
@@ -3059,10 +3092,35 @@ export const Budget: React.FC<BudgetProps> = ({
           <form onSubmit={handleSaveTx} className="glass-panel border border-white/10 rounded-[28px] w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-white/5 pb-2">
               <h3 className="text-sm font-extrabold text-white uppercase">{editingTx ? 'Modifier la transaction' : 'Ajouter une transaction'}</h3>
-              <button type="button" onClick={() => { setIsTxModalOpen(false); setWalletDraftMeta(null); }} className="p-1 text-white/40 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
+              <button type="button" onClick={() => { setIsTxModalOpen(false); setWalletDraftMeta(null); setReceiptDraftMeta(null); }} className="p-1 text-white/40 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
 
             <div className="space-y-3 text-xs">
+              {receiptDraftMeta && (
+                <div className="rounded-2xl border border-[#00D26A]/20 bg-[#00D26A]/8 p-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-[#00D26A]">Ticket analysé localement</p>
+                      <p className="mt-1 truncate text-sm font-black text-white">{receiptDraftMeta.merchantRaw || txForm.title}</p>
+                      {receiptDraftMeta.dateTime && <p className="mt-0.5 text-[9px] text-white/45">{new Date(receiptDraftMeta.dateTime).toLocaleString('fr-FR')}</p>}
+                    </div>
+                    <span className={`shrink-0 rounded-xl px-2.5 py-1.5 text-[9px] font-black ${receiptDraftMeta.amountConfidence === 'high' ? 'bg-[#00D26A]/15 text-[#00D26A]' : 'bg-[#FFB020]/15 text-[#FFB020]'}`}>{receiptDraftMeta.amountConfidence === 'high' ? 'Montant confirmé' : 'À vérifier'}</span>
+                  </div>
+                  {receiptDraftMeta.selectionReason && <p className="mt-2 text-[10px] font-medium text-white/60">{receiptDraftMeta.selectionReason}</p>}
+                  {receiptDraftMeta.categorySuggestion && <p className="mt-1 text-[10px] text-white/55">Catégorie suggérée : <strong className="text-white">{receiptDraftMeta.categorySuggestion}</strong></p>}
+                  {receiptDraftMeta.alternateAmounts.length > 0 && <p className="mt-1 text-[10px] text-white/45">Autres montants trouvés : {receiptDraftMeta.alternateAmounts.map(value => `${Number(value).toFixed(2)} €`).join(', ')}</p>}
+                  <label className="mt-3 block text-[9px] font-black uppercase tracking-wider text-white/45">Mode de paiement
+                    <select value={receiptDraftMeta.paymentMethod || ''} onChange={event => {
+                      const value = event.target.value || null;
+                      const labels: Record<string, string> = { card: 'Carte bancaire', cash: 'Espèces', check: 'Chèque', meal_voucher: 'Ticket restaurant' };
+                      setReceiptDraftMeta(current => current ? { ...current, paymentMethod: value, paymentMethodLabel: value ? labels[value] : 'Non détecté' } : current);
+                    }} className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#07111F]/60 px-3 py-2.5 text-xs text-white">
+                      <option value="">Non détecté</option><option value="card">Carte bancaire</option><option value="cash">Espèces</option><option value="check">Chèque</option><option value="meal_voucher">Ticket restaurant</option>
+                    </select>
+                  </label>
+                  <p className="mt-3 text-[10px] font-medium text-white/55">Vérifiez l’enseigne, le montant, la date, la catégorie et le compte. Rien ne sera enregistré avant votre validation.</p>
+                </div>
+              )}
               {walletDraftMeta && (
                 <div className="rounded-2xl border border-[#00D26A]/20 bg-[#00D26A]/8 p-3.5">
                   <div className="flex items-center justify-between gap-3">
@@ -3090,10 +3148,10 @@ export const Budget: React.FC<BudgetProps> = ({
               )}
               {txForm.title && (
                 <div className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 p-3">
-                  <MerchantLogo merchant={txForm.title} className="h-11 w-11" />
+                  <MerchantLogo merchant={txForm.title} className="h-11 w-11" strict={!!receiptDraftMeta} />
                   <div className="min-w-0">
-                    <p className="text-[9px] font-black uppercase tracking-wider text-white/35">{findMerchantBrand(txForm.title) ? 'Enseigne reconnue' : 'Commerce'}</p>
-                    <p className="truncate text-sm font-extrabold text-white">{findMerchantBrand(txForm.title)?.name || txForm.title}</p>
+                    <p className="text-[9px] font-black uppercase tracking-wider text-white/35">{(receiptDraftMeta ? findMerchantBrandByExplicitAlias(txForm.title) : findMerchantBrand(txForm.title)) ? 'Enseigne reconnue' : 'Commerce'}</p>
+                    <p className="truncate text-sm font-extrabold text-white">{(receiptDraftMeta ? findMerchantBrandByExplicitAlias(txForm.title) : findMerchantBrand(txForm.title))?.name || txForm.title}</p>
                   </div>
                 </div>
               )}

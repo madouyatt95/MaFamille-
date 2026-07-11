@@ -17,6 +17,7 @@ import {
 import { getSupabaseClient, serializeTransactionComment } from '../utils/supabase';
 import type { Transaction, CustomCategory, Account } from '../types';
 import type { WorkBook } from 'xlsx';
+import { parseReceiptText, recognizeImageDocument } from '../utils/localOcr';
 
 interface BudgetImportProps {
   isOpen: boolean;
@@ -305,21 +306,15 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
     setStep('mapping');
   };
 
-  // OCR Reader using Tesseract.js (Client-side)
+  // OCR Reader using the shared local OCR flow.
   const runLocalOcr = async (file: File) => {
     setLoading(true);
     setLoadingProgress('Initialisation de Tesseract OCR...');
     
     try {
-      const { createWorker } = await import('tesseract.js');
-      const worker = await createWorker('fra');
       setLoadingProgress('Lecture du document...');
-      
-      const { data: { text } } = await worker.recognize(file);
-      await worker.terminate();
-
-      // Extract transaction data from raw text
-      parseOcrText(text);
+      const document = await recognizeImageDocument(file);
+      parseOcrText(document.text, document.lines);
     } catch (err: unknown) {
       console.error('OCR Error:', err);
       setErrorMsg(`L'OCR local a échoué. Saisie manuelle suggérée.`);
@@ -327,62 +322,23 @@ export const BudgetImport: React.FC<BudgetImportProps> = ({
     }
   };
 
-  const parseOcrText = (text: string) => {
-    // Basic text parsing
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    
-    let amount = 0.0;
-    let merchant = 'Achat local';
-    let date = new Date().toISOString().split('T')[0];
-
-    // 1. Try to find merchant name (first lines with text and no numbers)
-    for (let i = 0; i < Math.min(lines.length, 5); i++) {
-      if (lines[i].length > 3 && !/\d/.test(lines[i]) && !/total|facture|ticket|reçu/i.test(lines[i])) {
-        merchant = lines[i];
-        break;
-      }
-    }
-
-    // 2. Try to find TOTAL amount
-    const amountRegex = /(?:total|ttc|net à payer|somme|payé)\s*:?\s*(\d+[.,]\d{2})/i;
-    for (const line of lines) {
-      const match = line.match(amountRegex);
-      if (match) {
-        amount = parseFloat(match[1].replace(',', '.'));
-        break;
-      }
-    }
-
-    // If no total found, search for any floating point number on lines containing TOTAL
-    if (amount === 0) {
-      for (const line of lines) {
-        if (/total|ttc/i.test(line)) {
-          const match = line.match(/(\d+[.,]\d{2})/);
-          if (match) {
-            amount = parseFloat(match[1].replace(',', '.'));
-            break;
-          }
-        }
-      }
-    }
-
-    // 3. Try to find date
-    const dateRegex = /(\d{2})[-/.](\d{2})[-/.](\d{4})/;
-    for (const line of lines) {
-      const match = line.match(dateRegex);
-      if (match) {
-        date = `${match[3]}-${match[2]}-${match[1]}`;
-        break;
-      }
-    }
+  const parseOcrText = (text: string, metadata: Parameters<typeof parseReceiptText>[1] = []) => {
+    const receipt = parseReceiptText(text, metadata);
 
     // Create a single row list
     const detectedRow: ParsedRow = {
-      date,
-      title: merchant,
-      amount: amount || 0.0,
+      date: receipt.date,
+      title: receipt.merchant,
+      amount: receipt.amount || 0,
       type: 'expense',
-      category: autoCategorize(merchant)
+      category: receipt.category,
+      subCategory: receipt.categorySuggestion === 'Restauration' ? 'Restaurant' : undefined,
+      comment: [
+        receipt.time ? `Heure : ${receipt.time.slice(0, 5)}` : '',
+        receipt.paymentMethod ? `Paiement : ${receipt.paymentMethodLabel}` : '',
+        receipt.selectionReason,
+        receipt.alternateAmounts.length ? `Autres montants détectés : ${receipt.alternateAmounts.map(value => `${value.toFixed(2)} €`).join(', ')}` : ''
+      ].filter(Boolean).join('\n')
     };
 
     setProcessedRows([detectedRow]);

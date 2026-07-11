@@ -1,13 +1,14 @@
 import { Store } from 'lucide-react';
-import { findMerchantBrand } from '../utils/merchantDirectory';
+import { findMerchantBrand, findMerchantBrandByExplicitAlias } from '../utils/merchantDirectory';
 
 interface MerchantLogoProps {
   merchant: string;
   className?: string;
+  strict?: boolean;
 }
 
-export function MerchantLogo({ merchant, className = 'h-9 w-9' }: MerchantLogoProps) {
-  const brand = findMerchantBrand(merchant);
+export function MerchantLogo({ merchant, className = 'h-9 w-9', strict = false }: MerchantLogoProps) {
+  const brand = strict ? findMerchantBrandByExplicitAlias(merchant) : findMerchantBrand(merchant);
 
   if (!brand) {
     return (

@@ -13,7 +13,7 @@ import {
   Loader
 } from 'lucide-react';
 import type { Account, ChoreTask, FamilyEvent, Member, EventType, Transaction, TransactionType } from '../types';
-import { parseReceiptText, recognizeImageText } from '../utils/localOcr';
+import { parseReceiptText, recognizeImageDocument, type LocalReceiptOcrResult, type ReceiptPaymentMethod } from '../utils/localOcr';
 
 interface QuickActionsSheetProps {
   isOpen: boolean;
@@ -56,6 +56,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   // Local OCR receipt scanner state
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState('');
+  const [ocrReceipt, setOcrReceipt] = useState<LocalReceiptOcrResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleOcrFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,11 +72,14 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
     setOcrError('');
 
     try {
-      const text = await recognizeImageText(file);
-      const receipt = parseReceiptText(text);
+      const document = await recognizeImageDocument(file);
+      const receipt = parseReceiptText(document.text, document.lines);
+      setOcrReceipt(receipt);
       if (receipt.merchant) setTransTitle(receipt.merchant);
       if (receipt.amount) setTransAmount(String(receipt.amount));
       if (receipt.category) setTransCat(receipt.category);
+      if (receipt.date) setTransDate(receipt.date);
+      setTransPaymentMethod(receipt.paymentMethod);
       if (!receipt.amount && !receipt.merchant) {
         setOcrError("Texte lu, mais montant introuvable. Vous pouvez compléter manuellement.");
       }
@@ -104,6 +108,8 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
   const [transCat, setTransCat] = useState(initialTransaction?.category || 'Alimentation');
   const [transMemberId, setTransMemberId] = useState('');
   const [transAccountId, setTransAccountId] = useState(initialTransaction?.accountId || '');
+  const [transDate, setTransDate] = useState(new Date().toISOString().split('T')[0]);
+  const [transPaymentMethod, setTransPaymentMethod] = useState<ReceiptPaymentMethod>(null);
 
   // Task
   const [taskTitle, setTaskTitle] = useState('');
@@ -128,7 +134,7 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
 
   const resetForms = () => {
     setEventTitle(''); setEventDate(''); setEventTime(''); setEventMemberId(''); setEventLoc(''); setEventDesc('');
-    setTransTitle(''); setTransAmount(''); setTransMemberId(''); setTransAccountId('');
+    setTransTitle(''); setTransAmount(''); setTransMemberId(''); setTransAccountId(''); setTransDate(new Date().toISOString().split('T')[0]); setTransPaymentMethod(null); setOcrReceipt(null);
     setTaskTitle(''); setTaskMemberId(''); setTaskRewardAmount('');
   };
 
@@ -158,11 +164,19 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
       amount: parseFloat(transAmount),
       type: transType,
       category: transCat,
-      date: new Date().toISOString().split('T')[0],
+      date: transDate,
       title: transTitle,
       memberId: transMemberId || undefined,
       memberName: member?.name || undefined,
-      accountId: transAccountId || undefined
+      accountId: transAccountId || undefined,
+      subCategory: ocrReceipt?.categorySuggestion === 'Restauration' ? 'Restaurant' : undefined,
+      moduleSource: ocrReceipt ? 'ocr_ticket' : undefined,
+      comment: ocrReceipt ? [
+        ocrReceipt.time ? `Heure : ${ocrReceipt.time.slice(0, 5)}` : '',
+        transPaymentMethod ? `Paiement : ${transPaymentMethod}` : '',
+        `Enseigne brute : ${ocrReceipt.merchantRaw}`,
+        ocrReceipt.selectionReason
+      ].filter(Boolean).join('\n') : undefined
     });
     triggerSuccess();
   };
@@ -441,6 +455,14 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
                     {ocrError && (
                       <p className="text-[10px] font-bold text-red-400 text-center">{ocrError}</p>
                     )}
+                    {ocrReceipt && (
+                      <div className="rounded-xl border border-[#00D26A]/20 bg-[#00D26A]/8 p-3 text-[10px] leading-relaxed text-white/65">
+                        <p className="font-black text-[#00D26A]">Ticket analysé · validation obligatoire</p>
+                        <p className="mt-1">{ocrReceipt.selectionReason}</p>
+                        {ocrReceipt.categorySuggestion && <p>Catégorie suggérée : <strong className="text-white">{ocrReceipt.categorySuggestion}</strong></p>}
+                        {ocrReceipt.alternateAmounts.length > 0 && <p>Autres montants trouvés : {ocrReceipt.alternateAmounts.map(value => `${value.toFixed(2)} €`).join(', ')}</p>}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Description de la transaction</label>
@@ -460,7 +482,8 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
                       <input 
                         type="number" 
                         required
-                        min="1"
+                        min="0.01"
+                        step="0.01"
                         placeholder="0.00" 
                         value={transAmount}
                         onChange={(e) => setTransAmount(e.target.value)}
@@ -478,6 +501,19 @@ export const QuickActionsSheet: React.FC<QuickActionsSheetProps> = ({
                         <option value="expense">Dépense (-)</option>
                         <option value="income">Revenu (+)</option>
                         <option value="savings">Épargne (→)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Date</label>
+                      <input type="date" value={transDate} onChange={(e) => setTransDate(e.target.value)} className="w-full px-4 py-3 rounded-[18px] bg-white/5 border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF]" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-white/60 uppercase tracking-wider">Paiement</label>
+                      <select value={transPaymentMethod || ''} onChange={(e) => setTransPaymentMethod((e.target.value || null) as ReceiptPaymentMethod)} className="w-full px-4 py-3 rounded-[18px] bg-[#07111F] border border-white/8 text-white focus:outline-none focus:border-[#6C5CFF]">
+                        <option value="">Non détecté</option><option value="card">Carte bancaire</option><option value="cash">Espèces</option><option value="check">Chèque</option><option value="meal_voucher">Ticket restaurant</option>
                       </select>
                     </div>
                   </div>
