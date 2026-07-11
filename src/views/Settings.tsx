@@ -36,7 +36,12 @@ import {
   ListTodo,
   MessageCircle,
   ShoppingCart,
-  Wallet
+  Wallet,
+  Download,
+  LogOut,
+  MonitorSmartphone,
+  Search,
+  UploadCloud
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
@@ -49,6 +54,7 @@ import { MemberAvatar } from '../components/MemberAvatar';
 import { ShortcutCenter } from '../components/ShortcutCenter';
 import { QUICK_ACTION_GUIDES } from '../constants/quickActionGuides';
 import type { QuickActionId } from '../utils/quickActionPreferences';
+import { createLocalBackup, downloadLocalBackup, restoreLocalBackup } from '../utils/localBackup';
 
 type NotificationPrefs = Record<string, boolean>;
 
@@ -66,6 +72,22 @@ const getErrorMessage = (err: unknown, fallback: string) =>
   err instanceof Error ? err.message : fallback;
 
 const SETTINGS_REFERENCE_TIME = Date.now();
+
+const SETTINGS_SEARCH_ITEMS = [
+  { tab: 'compte', target: 'settings-profile', title: 'Profil', description: 'Nom et photo de profil' },
+  { tab: 'compte', target: 'settings-security', title: 'Mot de passe', description: 'Sécurité du compte' },
+  { tab: 'compte', target: 'settings-appearance', title: 'Apparence', description: 'Mode sombre, clair ou sépia' },
+  { tab: 'compte', target: 'settings-accessibility', title: 'Accessibilité', description: 'Texte, contraste et animations' },
+  { tab: 'compte', target: 'settings-currency', title: 'Devise', description: 'Euro, franc CFA ou dollar' },
+  { tab: 'famille', target: 'settings-household', title: 'Foyer et abonnement', description: 'Premium, membres et invitations' },
+  { tab: 'alertes', target: 'settings-push', title: 'Notifications', description: 'Notifications sur cet appareil' },
+  { tab: 'alertes', target: 'settings-alert-modules', title: 'Alertes par module', description: 'Courses, budget, santé et messages' },
+  { tab: 'avance', target: 'settings-parental', title: 'Contrôle parental', description: 'PIN, récompenses et protections' },
+  { tab: 'avance', target: 'settings-local-backup', title: 'Sauvegarde locale', description: 'Exporter ou restaurer sur cet appareil' },
+  { tab: 'avance', target: 'settings-devices', title: 'Appareils connectés', description: 'Session actuelle et autres appareils' },
+  { tab: 'avance', target: 'settings-shortcuts', title: 'Raccourcis iPhone', description: 'Wallet, Siri, NFC et bouton Action' },
+  { tab: 'avance', target: 'settings-privacy', title: 'Confidentialité', description: 'Vie privée, droits et documents légaux' }
+] as const;
 
 interface SettingsProps {
   currency: string;
@@ -135,6 +157,12 @@ export const Settings: React.FC<SettingsProps> = ({
   const [shortcutCenterOpen, setShortcutCenterOpen] = useState(false);
   const [shortcutCenterInitialTab, setShortcutCenterInitialTab] = useState<'actions' | 'iphone'>('actions');
   const [focusWalletSetup, setFocusWalletSetup] = useState(false);
+  const [settingsSearch, setSettingsSearch] = useState('');
+  const [backupMessage, setBackupMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [restoringBackup, setRestoringBackup] = useState(false);
+  const [disconnectingOthers, setDisconnectingOthers] = useState(false);
+  const [sessionMessage, setSessionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const restoreBackupInputRef = useRef<HTMLInputElement>(null);
 
   const premiumExpiresAt = foyer?.premiumExpiresAt ? new Date(foyer.premiumExpiresAt) : null;
   const hasValidPremiumDate = Boolean(premiumExpiresAt && Number.isFinite(premiumExpiresAt.getTime()));
@@ -173,6 +201,36 @@ export const Settings: React.FC<SettingsProps> = ({
   ] as const;
   const activeSettingsTab = settingsTabs.find(tab => tab.id === settingsTab) || settingsTabs[0];
   const ActiveSettingsIcon = activeSettingsTab.icon;
+  const normalizedSettingsSearch = settingsSearch.trim().toLocaleLowerCase('fr-FR');
+  const settingsSearchResults = normalizedSettingsSearch.length >= 2
+    ? SETTINGS_SEARCH_ITEMS.filter(item => `${item.title} ${item.description}`.toLocaleLowerCase('fr-FR').includes(normalizedSettingsSearch)).slice(0, 6)
+    : [];
+
+  const currentDevice = (() => {
+    const userAgent = navigator.userAgent;
+    const platform = /iPad|iPhone|iPod/i.test(userAgent)
+      ? 'iPhone ou iPad'
+      : /Android/i.test(userAgent)
+        ? 'Appareil Android'
+        : /Macintosh|Mac OS X/i.test(userAgent)
+          ? 'Mac'
+          : /Windows/i.test(userAgent)
+            ? 'PC Windows'
+            : 'Appareil actuel';
+    const browser = /CriOS|Chrome/i.test(userAgent)
+      ? 'Chrome'
+      : /FxiOS|Firefox/i.test(userAgent)
+        ? 'Firefox'
+        : /Safari/i.test(userAgent)
+          ? 'Safari'
+          : 'Application';
+    const context = isNativeApp
+      ? 'Application iPhone'
+      : window.matchMedia('(display-mode: standalone)').matches
+        ? 'Application web installée'
+        : browser;
+    return { platform, context };
+  })();
 
   const handleOpenStripePortal = async () => {
     if (!foyer?.id || openingStripePortal) return;
@@ -584,12 +642,60 @@ export const Settings: React.FC<SettingsProps> = ({
 
 
 
-  const triggerManualBackup = () => {
+  const openSettingsSearchResult = (tab: 'compte' | 'famille' | 'alertes' | 'avance', target: string) => {
+    setSettingsTab(tab);
+    setSettingsSearch('');
+    window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+  };
+
+  const triggerManualBackup = async () => {
     setSavingBackup(true);
-    setTimeout(() => {
+    setBackupMessage(null);
+    try {
+      const backup = createLocalBackup();
+      const saved = await downloadLocalBackup(backup);
+      if (!saved) return;
+      localStorage.setItem('mf_last_local_backup_at', backup.createdAt);
+      setBackupMessage({ type: 'success', text: `${backup.itemCount} réglages et données locales sauvegardés.` });
+    } catch (error) {
+      setBackupMessage({ type: 'error', text: getErrorMessage(error, 'Impossible de créer la sauvegarde locale.') });
+    } finally {
       setSavingBackup(false);
-      alert('Sauvegarde locale et cloud effectuée avec succès !');
-    }, 1000);
+    }
+  };
+
+  const handleRestoreBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!window.confirm('Restaurer cette sauvegarde locale ? Les réglages présents dans le fichier remplaceront ceux de cet appareil.')) return;
+    setRestoringBackup(true);
+    setBackupMessage(null);
+    try {
+      const result = await restoreLocalBackup(file);
+      setBackupMessage({ type: 'success', text: `${result.restored} éléments restaurés. L’application va actualiser les réglages.` });
+      window.setTimeout(() => window.location.reload(), 900);
+    } catch (error) {
+      setBackupMessage({ type: 'error', text: getErrorMessage(error, 'Impossible de restaurer cette sauvegarde.') });
+      setRestoringBackup(false);
+    }
+  };
+
+  const disconnectOtherDevices = async () => {
+    if (!window.confirm('Déconnecter MyFamily+ de tous vos autres appareils ? La session de cet appareil restera active.')) return;
+    setDisconnectingOthers(true);
+    setSessionMessage(null);
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) throw new Error('Service de connexion indisponible.');
+      const { error } = await supabase.auth.signOut({ scope: 'others' });
+      if (error) throw error;
+      setSessionMessage({ type: 'success', text: 'Les autres appareils ont été déconnectés.' });
+    } catch (error) {
+      setSessionMessage({ type: 'error', text: getErrorMessage(error, 'Impossible de déconnecter les autres appareils.') });
+    } finally {
+      setDisconnectingOthers(false);
+    }
   };
 
   const getRoleLabel = (role: string) => {
@@ -625,6 +731,46 @@ export const Settings: React.FC<SettingsProps> = ({
           <SettingsIcon className="h-5 w-5" />
         </div>
       </header>
+
+      <div className="relative z-20">
+        <label className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/8 bg-white/4 px-4 shadow-[0_12px_30px_rgba(0,0,0,0.06)] focus-within:border-[#6C5CFF]/45 focus-within:bg-white/6">
+          <Search className="h-4 w-4 shrink-0 text-white/35" />
+          <input
+            type="search"
+            value={settingsSearch}
+            onChange={event => setSettingsSearch(event.target.value)}
+            placeholder="Rechercher dans les réglages"
+            className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-white outline-none placeholder:text-white/30"
+          />
+          {settingsSearch && (
+            <button type="button" onClick={() => setSettingsSearch('')} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/40 hover:bg-white/6 hover:text-white" aria-label="Effacer la recherche">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </label>
+
+        {normalizedSettingsSearch.length >= 2 && (
+          <div className="absolute left-0 right-0 top-[calc(100%+8px)] overflow-hidden rounded-2xl border border-white/10 bg-[#0B1728] p-2 shadow-2xl">
+            {settingsSearchResults.length > 0 ? settingsSearchResults.map(result => (
+              <button
+                key={result.target}
+                type="button"
+                onClick={() => openSettingsSearchResult(result.tab, result.target)}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/6"
+              >
+                <Search className="h-4 w-4 shrink-0 text-[#9E94FF]" />
+                <span className="min-w-0 flex-1">
+                  <strong className="block text-xs text-white">{result.title}</strong>
+                  <small className="mt-0.5 block truncate text-[9px] text-white/40">{result.description}</small>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-white/25" />
+              </button>
+            )) : (
+              <p className="px-3 py-4 text-center text-[10px] font-semibold text-white/40">Aucun réglage correspondant.</p>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-4 gap-1 rounded-2xl border border-white/8 bg-white/4 p-1.5 shadow-[0_14px_36px_rgba(0,0,0,0.08)]">
         {settingsTabs.map((tab) => (
@@ -662,7 +808,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* 0. Mon Profil */}
       {settingsTab === 'compte' && (myMemberProfile || activeMemberId) && (
-        <form onSubmit={handleSaveProfile} className="glass-panel animate-fade-in space-y-5 rounded-2xl border border-white/8 p-5">
+        <form id="settings-profile" onSubmit={handleSaveProfile} className="glass-panel animate-fade-in scroll-mt-5 space-y-5 rounded-2xl border border-white/8 p-5">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
               <Sparkles className="w-4 h-4 text-[#6C5CFF]" />
@@ -758,7 +904,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* Modifier mon mot de passe */}
       {settingsTab === 'compte' && user && (
-        <details className="group glass-panel rounded-2xl border border-white/8 p-5 space-y-4 animate-fade-in">
+        <details id="settings-security" className="group glass-panel scroll-mt-5 rounded-2xl border border-white/8 p-5 space-y-4 animate-fade-in">
           <summary className="list-none cursor-pointer flex items-center justify-between gap-3">
             <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
               <Lock className="w-4 h-4 text-[#FF4D6D]" />
@@ -840,7 +986,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* Sélecteur de Mode d'Apparence */}
       {settingsTab === 'compte' && (
-      <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
+      <div id="settings-appearance" className="glass-panel scroll-mt-5 rounded-2xl border border-white/8 p-5 space-y-4">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
           <Palette className="w-4 h-4 text-[#6C5CFF]" />
           <span>Apparence & Mode visuel</span>
@@ -877,7 +1023,7 @@ export const Settings: React.FC<SettingsProps> = ({
       )}
 
       {settingsTab === 'compte' && (
-        <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
+        <div id="settings-accessibility" className="glass-panel scroll-mt-5 rounded-2xl border border-white/8 p-5 space-y-4">
           <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white">
             <Accessibility className="h-4 w-4 text-[#00D26A]" />
             Accessibilité
@@ -924,7 +1070,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* Notifications Push */}
       {settingsTab === 'alertes' && (
-      <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
+      <div id="settings-push" className="glass-panel scroll-mt-5 rounded-2xl border border-white/8 p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
             {pushEnabled ? <Bell className="w-4 h-4 text-[#00D26A]" /> : <BellOff className="w-4 h-4 text-white/40" />}
@@ -1039,7 +1185,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* Toggles de personnalisation par module */}
       {settingsTab === 'alertes' && (
-      <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
+      <div id="settings-alert-modules" className="glass-panel scroll-mt-5 rounded-2xl border border-white/8 p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
             <Bell className="w-4 h-4 text-[#6C5CFF]" />
@@ -1092,7 +1238,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* 1. Devise Section */}
       {settingsTab === 'compte' && (
-      <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
+      <div id="settings-currency" className="glass-panel scroll-mt-5 rounded-2xl border border-white/8 p-5 space-y-4">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
           <Coins className="w-4 h-4 text-[#FFB020]" />
           <span>Devise par défaut</span>
@@ -1125,7 +1271,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* 2. Foyer Management Section */}
       {settingsTab === 'famille' && (user && foyer ? (
-        <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-5 animate-fade-in">
+        <div id="settings-household" className="glass-panel animate-fade-in scroll-mt-5 space-y-5 rounded-2xl border border-white/8 p-5">
           
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2 min-w-0">
@@ -1326,7 +1472,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* Réglages parentaux avancés */}
       {settingsTab === 'avance' && user && foyer && (!myMemberProfile || ['admin', 'parent'].includes(myMemberProfile.role)) && (
-        <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-5 animate-fade-in">
+        <div id="settings-parental" className="glass-panel animate-fade-in scroll-mt-5 space-y-5 rounded-2xl border border-white/8 p-5">
           <div>
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
               <Shield className="w-4 h-4 text-[#FFB020]" />
@@ -1579,44 +1725,110 @@ export const Settings: React.FC<SettingsProps> = ({
 
 
       {/* 4. Données locales & Sauvegarde */}
-      {settingsTab === 'avance' && !user && (
-        <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-            <Database className="w-4 h-4 text-[#00D26A]" />
-            <span>Données locales & Sauvegarde</span>
-          </h3>
-          
-          <p className="text-xs text-white/50 leading-relaxed font-medium">
-            Sauvegardez vos données locales sur votre appareil ou réinitialisez l'application pour restaurer les données locales par défaut.
-          </p>
+      {settingsTab === 'avance' && (
+        <div id="settings-local-backup" className="glass-panel scroll-mt-5 space-y-4 rounded-2xl border border-white/8 p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white">
+                <Database className="h-4 w-4 text-[#00D26A]" />
+                <span>Sauvegarde locale</span>
+              </h3>
+              <p className="mt-2 text-xs font-medium leading-relaxed text-white/50">Créez un fichier privé à conserver sur votre appareil. Rien n’est envoyé dans le cloud.</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-[#00D26A]/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-[#00D26A]">Hors ligne</span>
+          </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-2">
-            <button 
-              onClick={triggerManualBackup}
-              disabled={savingBackup}
-              className="py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer"
+          <div className="flex items-center justify-between rounded-xl border border-white/7 bg-white/3 p-3">
+            <span>
+              <strong className="block text-[11px] text-white">Dernière sauvegarde</strong>
+              <small className="mt-0.5 block text-[9px] text-white/40">
+                {(() => {
+                  const rawDate = localStorage.getItem('mf_last_local_backup_at');
+                  if (!rawDate) return 'Aucune sauvegarde créée sur cet appareil';
+                  const date = new Date(rawDate);
+                  return Number.isNaN(date.getTime()) ? 'Date inconnue' : date.toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
+                })()}
+              </small>
+            </span>
+            <Download className="h-4 w-4 shrink-0 text-white/30" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => void triggerManualBackup()}
+              disabled={savingBackup || restoringBackup}
+              className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#6C5CFF] px-3 text-[10px] font-black text-white shadow-lg shadow-[#6C5CFF]/15 disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${savingBackup ? 'animate-spin' : ''}`} />
-              <span>{savingBackup ? 'Sauvegarde...' : 'Sauvegarder'}</span>
+              {savingBackup ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {savingBackup ? 'Préparation…' : 'Créer le fichier'}
             </button>
-            
-            <button 
-              onClick={() => {
-                if (window.confirm('Voulez-vous réinitialiser le système ? Les modifications locales seront effacées et remplacées par les données locales par défaut.')) {
-                  onResetData();
-                }
-              }}
-              className="py-3 rounded-xl bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 border border-[#FF4D6D]/20 text-[#FF4D6D] font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer"
+            <button
+              type="button"
+              onClick={() => restoreBackupInputRef.current?.click()}
+              disabled={savingBackup || restoringBackup}
+              className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-[10px] font-black text-white/75 disabled:opacity-50"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Réinitialiser</span>
+              {restoringBackup ? <RefreshCw className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+              Restaurer
             </button>
           </div>
+          <input ref={restoreBackupInputRef} type="file" accept="application/json,.json" onChange={event => void handleRestoreBackup(event)} className="hidden" />
+
+          {backupMessage && (
+            <p className={`rounded-xl border px-3 py-2.5 text-[10px] font-bold ${backupMessage.type === 'success' ? 'border-[#00D26A]/20 bg-[#00D26A]/8 text-[#00D26A]' : 'border-red-500/20 bg-red-500/8 text-red-400'}`}>{backupMessage.text}</p>
+          )}
+
+          <details className="group border-t border-white/7 pt-3">
+            <summary className="flex cursor-pointer list-none items-center justify-between text-[10px] font-bold text-white/40">
+              Réinitialiser les données de cet appareil
+              <ChevronRight className="h-4 w-4 transition group-open:rotate-90" />
+            </summary>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Effacer les données locales de cet appareil ? Les données synchronisées du foyer ne seront pas supprimées.')) onResetData();
+              }}
+              className="mt-3 flex w-full min-h-11 items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/8 px-3 text-[10px] font-black text-red-400"
+            >
+              <Trash2 className="h-4 w-4" /> Réinitialiser cet appareil
+            </button>
+          </details>
+        </div>
+      )}
+
+      {settingsTab === 'avance' && user && (
+        <div id="settings-devices" className="glass-panel scroll-mt-5 space-y-4 rounded-2xl border border-white/8 p-5">
+          <div>
+            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white"><MonitorSmartphone className="h-4 w-4 text-[#4F8CFF]" /> Appareils connectés</h3>
+            <p className="mt-2 text-xs font-medium leading-relaxed text-white/50">Contrôlez l’accès à votre compte sans conserver une liste supplémentaire d’appareils.</p>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-xl border border-[#00D26A]/15 bg-[#00D26A]/6 p-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#00D26A]/12 text-[#00D26A]"><MonitorSmartphone className="h-5 w-5" /></span>
+            <span className="min-w-0 flex-1">
+              <strong className="block truncate text-xs text-white">{currentDevice.platform}</strong>
+              <small className="mt-0.5 block truncate text-[9px] text-white/45">{currentDevice.context} · Session actuelle</small>
+            </span>
+            <span className="shrink-0 rounded-full bg-[#00D26A]/12 px-2 py-1 text-[8px] font-black uppercase text-[#00D26A]">Actif</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void disconnectOtherDevices()}
+            disabled={disconnectingOthers}
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#FFB020]/20 bg-[#FFB020]/8 px-3 text-[10px] font-black text-[#FFB020] disabled:opacity-50"
+          >
+            {disconnectingOthers ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+            {disconnectingOthers ? 'Déconnexion…' : 'Déconnecter les autres appareils'}
+          </button>
+          <p className="text-[9px] font-medium leading-relaxed text-white/35">Pour votre sécurité, les détails des autres sessions ne sont pas exposés. Cette action révoque toutes les autres connexions sans fermer celle-ci.</p>
+          {sessionMessage && <p className={`rounded-xl border px-3 py-2.5 text-[10px] font-bold ${sessionMessage.type === 'success' ? 'border-[#00D26A]/20 bg-[#00D26A]/8 text-[#00D26A]' : 'border-red-500/20 bg-red-500/8 text-red-400'}`}>{sessionMessage.text}</p>}
         </div>
       )}
 
       {settingsTab === 'avance' && (
-        <div className="glass-panel space-y-4 rounded-2xl border border-white/8 p-5">
+        <div id="settings-shortcuts" className="glass-panel scroll-mt-5 space-y-4 rounded-2xl border border-white/8 p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white">
@@ -1707,64 +1919,64 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* 5. Charte RGPD & Mentions Légales */}
       {settingsTab === 'avance' && (
-      <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
+      <div id="settings-privacy" className="glass-panel scroll-mt-5 space-y-4 rounded-2xl border border-white/8 p-5">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
             <Lock className="w-4 h-4 text-[#00D26A]" />
-            <span>Mentions Légales & RGPD</span>
+            <span>Confidentialité et droits</span>
           </h3>
           <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-[#00D26A]/20 text-[#00D26A]">Informations</span>
         </div>
         
         <p className="text-xs text-white/50 leading-relaxed font-medium">
-          MyFamily+ est conçue pour respecter rigoureusement votre vie privée. Consultez nos politiques et vos droits légaux.
+          Consultez les informations sur vos données, vos droits et les engagements de MyFamily+.
         </p>
 
         <div className="space-y-2 pt-2">
-          {/* Accordion 1: Mentions Légales */}
-          <details className="group bg-white/3 border border-white/5 rounded-2xl overflow-hidden transition-all">
-            <summary className="p-4 text-xs font-bold text-white flex items-center justify-between cursor-pointer list-none select-none">
-              <span>⚖️ Mentions Légales</span>
-              <span className="text-white/30 group-open:rotate-180 transition-transform">▼</span>
+          <details className="group overflow-hidden rounded-xl border border-white/6 bg-white/3 transition-all">
+            <summary className="flex cursor-pointer list-none items-center gap-3 p-4 text-xs font-bold text-white select-none">
+              <Shield className="h-4 w-4 shrink-0 text-[#9E94FF]" />
+              <span className="min-w-0 flex-1">Informations légales</span>
+              <ChevronRight className="h-4 w-4 text-white/30 transition group-open:rotate-90" />
             </summary>
-            <div className="p-4 pt-0 text-[10px] text-white/40 leading-relaxed space-y-2 border-t border-white/5">
-              <p><strong>Éditeur de l'application :</strong> Yatta Digital.</p>
-              <p><strong>Hébergement :</strong> Supabase & Vercel, selon la configuration du projet.</p>
-              <p><strong>Contact confidentialité :</strong> dpo@myfamilyplus.fr.</p>
+            <div className="space-y-2 border-t border-white/5 p-4 text-[10px] leading-relaxed text-white/45">
+              <p><strong className="text-white/70">Éditeur :</strong> Yatta Digital.</p>
+              <p><strong className="text-white/70">Services d’hébergement :</strong> Supabase et Vercel.</p>
+              <p><strong className="text-white/70">Confidentialité :</strong> dpo@myfamilyplus.fr.</p>
             </div>
           </details>
 
-          {/* Accordion 2: Politique de Confidentialité */}
-          <details className="group bg-white/3 border border-white/5 rounded-2xl overflow-hidden transition-all">
-            <summary className="p-4 text-xs font-bold text-white flex items-center justify-between cursor-pointer list-none select-none">
-              <span>🔒 Charte de Confidentialité</span>
-              <span className="text-white/30 group-open:rotate-180 transition-transform">▼</span>
+          <details className="group overflow-hidden rounded-xl border border-white/6 bg-white/3 transition-all">
+            <summary className="flex cursor-pointer list-none items-center gap-3 p-4 text-xs font-bold text-white select-none">
+              <Lock className="h-4 w-4 shrink-0 text-[#00D26A]" />
+              <span className="min-w-0 flex-1">Protection de vos données</span>
+              <ChevronRight className="h-4 w-4 text-white/30 transition group-open:rotate-90" />
             </summary>
-            <div className="p-4 pt-0 text-[10px] text-white/40 leading-relaxed space-y-3 border-t border-white/5">
+            <div className="space-y-3 border-t border-white/5 p-4 text-[10px] leading-relaxed text-white/45">
               <div>
-                <p className="font-bold text-white mb-0.5">1. Collecte Minimale des Données</p>
-                <p>Nous collectons uniquement les informations nécessaires au bon fonctionnement de l'application (prénoms, soldes financiers, photos partagées).</p>
+                <p className="mb-0.5 font-bold text-white/75">Données utiles uniquement</p>
+                <p>Seules les informations nécessaires aux fonctions choisies sont traitées.</p>
               </div>
               <div>
-                <p className="font-bold text-white mb-0.5">2. Géolocalisation Contrôlée</p>
-                <p>La géolocalisation n'est partagée qu'avec votre consentement explicite. À tout moment, vous pouvez activer le "Mode Masqué" pour stopper tout partage.</p>
+                <p className="mb-0.5 font-bold text-white/75">Localisation sous votre contrôle</p>
+                <p>Le partage de position nécessite votre autorisation et peut être interrompu à tout moment.</p>
               </div>
               <div>
-                <p className="font-bold text-white mb-0.5">3. Droits des Enfants (Mineurs)</p>
-                <p>Conformément à l'Article 8 du RGPD, la gestion des profils mineurs est intégralement gérée par le représentant légal (parent) titulaire du compte.</p>
+                <p className="mb-0.5 font-bold text-white/75">Profils des enfants</p>
+                <p>Les profils mineurs sont administrés par le parent ou représentant légal du foyer.</p>
               </div>
             </div>
           </details>
 
-          {/* Accordion 3: Cookies & Traceurs */}
-          <details className="group bg-white/3 border border-white/5 rounded-2xl overflow-hidden transition-all">
-            <summary className="p-4 text-xs font-bold text-white flex items-center justify-between cursor-pointer list-none select-none">
-              <span>🍪 Gestion des Cookies & Traceurs</span>
-              <span className="text-white/30 group-open:rotate-180 transition-transform">▼</span>
+          <details className="group overflow-hidden rounded-xl border border-white/6 bg-white/3 transition-all">
+            <summary className="flex cursor-pointer list-none items-center gap-3 p-4 text-xs font-bold text-white select-none">
+              <Database className="h-4 w-4 shrink-0 text-[#4F8CFF]" />
+              <span className="min-w-0 flex-1">Stockage sur votre appareil</span>
+              <ChevronRight className="h-4 w-4 text-white/30 transition group-open:rotate-90" />
             </summary>
-            <div className="p-4 pt-0 text-[10px] text-white/40 leading-relaxed space-y-2 border-t border-white/5">
-              <p>🌱 <strong>Aucun traceur publicitaire :</strong> L'application MyFamily+ n'utilise aucun cookie tiers, traceur analytique invasif ou pixel publicitaire.</p>
-              <p>💾 <strong>Stockage technique uniquement :</strong> Seul le stockage local technique (localStorage / jetons sécurisés) est utilisé pour maintenir votre session ouverte et mémoriser votre mode d'affichage.</p>
+            <div className="space-y-2 border-t border-white/5 p-4 text-[10px] leading-relaxed text-white/45">
+              <p><strong className="text-white/70">Aucune publicité ciblée :</strong> MyFamily+ n’utilise pas de traceur publicitaire.</p>
+              <p><strong className="text-white/70">Préférences locales :</strong> certains choix sont mémorisés uniquement sur votre appareil pour faciliter l’utilisation de l’application.</p>
             </div>
           </details>
 
