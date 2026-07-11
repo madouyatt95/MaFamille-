@@ -1011,9 +1011,138 @@
 .family-roots .fr-person-add svg { width: 12px; height: 12px; }
 
 .family-roots .fr-genealogy-tree {
-  width: min(900px, 100%);
+  width: min(1180px, 100%);
   margin: 0 auto;
   padding: 8px 0 14px;
+}
+
+/* The main tree behaves like a panoramic canvas, not a card nested in a page. */
+.family-roots .fr-tree-content .fr-tree-surface {
+  width: calc(100% + 32px);
+  margin-inline: -16px;
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.family-roots .fr-tree-content .fr-tree-board {
+  min-height: clamp(390px, 58vh, 720px);
+  padding-inline: clamp(12px, 3vw, 44px);
+}
+
+.family-roots .fr-density-control {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 3px;
+  border: 1px solid var(--fr-line);
+  border-radius: 11px;
+  background: var(--fr-surface);
+}
+
+.family-roots .fr-density-control button,
+.family-roots .fr-legend-toggle {
+  min-height: 27px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--fr-muted);
+  background: transparent;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.family-roots .fr-density-control button.is-active,
+.family-roots .fr-legend-toggle.is-active {
+  color: var(--fr-violet);
+  background: var(--fr-violet-soft);
+}
+
+.family-roots .fr-legend-toggle {
+  min-height: 34px;
+  border: 1px solid var(--fr-line);
+  background: var(--fr-surface);
+}
+
+.family-roots .fr-tree-position {
+  display: grid;
+  grid-template-columns: 24px auto minmax(0, 1fr);
+  align-items: center;
+  gap: 3px 8px;
+  margin: 0 0 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--fr-line);
+  border-radius: 13px;
+  color: var(--fr-muted);
+  background: color-mix(in srgb, var(--fr-surface) 90%, transparent);
+  font-size: 9px;
+}
+
+.family-roots .fr-tree-position svg { grid-row: 1 / 3; width: 17px; color: var(--fr-violet); }
+.family-roots .fr-tree-position strong { overflow: hidden; color: var(--fr-text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.family-roots .fr-tree-position small { grid-column: 2 / 4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.family-roots .fr-tree-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--fr-line);
+  border-radius: 13px;
+  background: var(--fr-surface);
+}
+
+.family-roots .fr-tree-legend span { display: inline-flex; align-items: center; gap: 5px; color: var(--fr-muted); font-size: 9px; font-weight: 750; }
+.family-roots .fr-tree-legend i { width: 19px; height: 3px; border-radius: 99px; background: var(--fr-violet); }
+.family-roots .fr-tree-legend i.is-child { background: var(--fr-blue); }
+.family-roots .fr-tree-legend i.is-former { background: var(--fr-muted); }
+.family-roots .fr-tree-legend i.is-branch { background: var(--fr-green); }
+.family-roots .fr-tree-legend i.is-pending { height: 0; border-top: 2px dashed var(--fr-orange); background: transparent; }
+
+.family-roots .fr-empty-tree-actions {
+  width: min(390px, 100%);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.family-roots .fr-empty-tree-actions button {
+  min-height: 39px;
+  padding: 8px;
+  border: 1px solid var(--fr-line);
+  border-radius: 11px;
+  color: var(--fr-violet);
+  background: var(--fr-surface);
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.family-roots .fr-empty-tree-actions button:last-child { grid-column: 1 / -1; color: #fff; border-color: var(--fr-violet); background: var(--fr-violet); }
+
+.family-roots .fr-tree-board.is-compact .fr-genealogy-generation { padding-block: 12px 22px; }
+.family-roots .fr-tree-board.is-compact .fr-genealogy-generation + .fr-genealogy-generation { padding-top: 26px; }
+.family-roots .fr-tree-board.is-compact .fr-genealogy-row { gap: clamp(6px, 1.7vw, 15px); }
+.family-roots .fr-tree-board.is-compact .fr-genealogy-union,
+.family-roots .fr-tree-board.is-compact .fr-genealogy-more { flex-basis: 170px; min-width: 96px; min-height: 118px; border-radius: 16px; }
+.family-roots .fr-tree-board.is-compact .fr-genealogy-union { padding: 9px 5px 7px; }
+.family-roots .fr-tree-board.is-compact .fr-genealogy-union-people { gap: 15px; }
+.family-roots .fr-tree-board.is-compact .fr-genealogy-union .fr-person-node { width: 67px; }
+.family-roots .fr-tree-board.is-compact .fr-genealogy-union .fr-avatar { width: 47px; height: 47px; }
+.family-roots .fr-tree-board.is-compact .fr-person-node strong { margin-top: 4px; font-size: 9px; }
+.family-roots .fr-tree-board.is-compact .fr-person-node span { font-size: 8px; }
+
+@media (min-width: 760px) {
+  .family-roots .fr-tree-content .fr-tree-surface { width: calc(100% + 56px); margin-inline: -28px; }
+}
+
+@media (max-width: 520px) {
+  .family-roots .fr-density-control { width: 100%; }
+  .family-roots .fr-density-control button { flex: 1; }
+  .family-roots .fr-legend-toggle { flex: 1; }
+  .family-roots .fr-tree-position { grid-template-columns: 20px auto minmax(0, 1fr); }
 }
 
 .family-roots .fr-genealogy-generation {

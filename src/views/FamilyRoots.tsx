@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
 import {
   AlertTriangle,
   Bell,
@@ -59,6 +59,7 @@ import { ImageCropper } from '../components/ImageCropper';
 const FamilyRootsWorldMap = lazy(() => import('./FamilyRootsWorldMap'));
 
 type RootTab = 'tree' | 'cousins' | 'branches' | 'map' | 'history';
+type TreeDensity = 'auto' | 'comfortable' | 'compact';
 type ModalName = 'add-person' | 'link-persons' | 'link-branch' | 'invite' | 'branch-details' | 'review-center' | 'photo-crop' | null;
 type ProfileTab = 'infos' | 'famille' | 'medias' | 'liens';
 
@@ -93,6 +94,7 @@ const relationshipLabels: Record<FamilyRelationshipType, string> = {
 };
 
 const branchColors = ['violet', 'green', 'orange', 'blue'] as const;
+const rootTabs: Array<[RootTab, string]> = [['tree', 'Arbre'], ['cousins', 'Cousins'], ['branches', 'Branches'], ['map', 'Carte'], ['history', 'Histoire']];
 const FAMILY_ROOTS_RENDER_TIME = Date.now();
 const DEFAULT_SHARED_FIELDS = ['display_name', 'nickname', 'country', 'origin_city', 'birth_date', 'photo_url'];
 
@@ -310,6 +312,9 @@ function TreeBoard({
   onOpenBranch,
   onSelect,
   onAddRelative,
+  density = 'comfortable',
+  onEmptyAdd,
+  onEmptyLinkBranch,
   fullScreen = false
 }: {
   profiles: FamilyTreeProfile[];
@@ -323,14 +328,17 @@ function TreeBoard({
   onOpenBranch: (foyerId: string) => void;
   onSelect: (profile: FamilyTreeProfile) => void;
   onAddRelative?: (profile: FamilyTreeProfile) => void;
+  density?: Exclude<TreeDensity, 'auto'>;
+  onEmptyAdd?: (relation: 'parent' | 'enfant') => void;
+  onEmptyLinkBranch?: () => void;
   fullScreen?: boolean;
 }) {
   if (!profiles.length) {
-    return <div className="fr-empty-tree"><TreePine /><strong>Commencez votre arbre</strong><span>Ajoutez les personnes de votre famille, puis reliez-les simplement.</span></div>;
+    return <div className="fr-empty-tree"><TreePine /><strong>Commencez votre arbre</strong><span>Choisissez un premier lien pour construire une histoire familiale fidèle.</span><div className="fr-empty-tree-actions"><button onClick={() => onEmptyAdd?.('parent')}>Ajouter mes parents</button><button onClick={() => onEmptyAdd?.('enfant')}>Ajouter mes enfants</button><button onClick={onEmptyLinkBranch}>Relier une branche</button></div></div>;
   }
 
   return (
-    <div className={`fr-tree-board ${fullScreen ? 'is-fullscreen-tree' : ''}`} data-family={familyName} data-foyer={activeFoyerId}>
+    <div className={`fr-tree-board is-${density} ${fullScreen ? 'is-fullscreen-tree' : ''}`} data-family={familyName} data-foyer={activeFoyerId}>
       <FocusedGenealogyTree profiles={profiles} relationships={relationships} focusProfileId={focusProfileId} selectedProfileId={selectedProfileId} expandedGenerations={expandedHouseholds} onToggleGeneration={onToggleHousehold} onSelect={onSelect} onAddRelative={onAddRelative} />
       {profiles.some(profile => profile.foyerId !== activeFoyerId) && <button className="fr-open-branches" onClick={() => onOpenBranch(profiles.find(profile => profile.foyerId !== activeFoyerId)?.foyerId || activeFoyerId)}><UsersRound /> Voir les foyers reliés</button>}
     </div>
@@ -376,6 +384,8 @@ export function FamilyRoots({
   const [connectionTargets, setConnectionTargets] = useState<Record<string, string>>({});
   const [treeScope, setTreeScope] = useState<'mine' | 'global'>('global');
   const [readingMode, setReadingMode] = useState(false);
+  const [treeDensity, setTreeDensity] = useState<TreeDensity>('auto');
+  const [legendOpen, setLegendOpen] = useState(false);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [shareDrafts, setShareDrafts] = useState<Record<string, { isVisible: boolean; sharedFields: string[] }>>({});
   const [query, setQuery] = useState('');
@@ -390,6 +400,7 @@ export function FamilyRoots({
   const [inviteLinkHandled, setInviteLinkHandled] = useState(false);
   const [photoCropFile, setPhotoCropFile] = useState<File | null>(null);
   const fullTreeScrollRef = useRef<HTMLDivElement>(null);
+  const tabSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const activeFoyerId = foyerId || 'local';
   const inviteCodeFromUrl = useMemo(() => {
@@ -508,6 +519,10 @@ export function FamilyRoots({
   }, [activeTab, locationSignature, profiles, resolvedCoordinates]);
   const selectedBranch = branches.find(branch => branch.id === selectedBranchId) || null;
   const visibleTreeProfiles = treeScope === 'mine' ? localProfiles : profiles;
+  const resolvedTreeDensity: Exclude<TreeDensity, 'auto'> = treeDensity === 'auto'
+    ? (visibleTreeProfiles.length >= 10 ? 'compact' : 'comfortable')
+    : treeDensity;
+  const focusedTreeProfile = visibleTreeProfiles.find(profile => profile.id === treeFocusId) || visibleTreeProfiles[0];
   const possibleDuplicates = useMemo(() => {
     const normalize = (value: string) => value.trim().toLocaleLowerCase('fr-FR').replace(/[^a-z0-9]/g, '');
     const reviewedPairs = new Set(identityRequests.map(request => `${request.sourceProfileId}:${request.targetProfileId}`));
@@ -660,6 +675,32 @@ export function FamilyRoots({
     if (editingAllowed) return true;
     showFeedback(readingMode ? 'Quittez le mode lecture pour modifier votre branche.' : 'Seul un parent ou le chef de famille peut modifier l’arbre.');
     return false;
+  };
+
+  const openEmptyRelative = (relation: 'parent' | 'enfant') => {
+    if (!ensureManage()) return;
+    setPersonForm({ name: '', date: '', city: '', country: '', anchorId: '', relation });
+    setModal('add-person');
+  };
+
+  const handleTabTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    const target = event.target as Element;
+    if (target.closest('button, input, select, textarea, .fr-tree-surface, .fr-world-card, .fr-profile-drawer, .fr-modal')) return;
+    const touch = event.touches[0];
+    tabSwipeStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+  };
+
+  const handleTabTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    const start = tabSwipeStartRef.current;
+    tabSwipeStartRef.current = null;
+    const touch = event.changedTouches[0];
+    if (!start || !touch) return;
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (Math.abs(deltaX) < 64 || Math.abs(deltaX) < Math.abs(deltaY) * 1.35) return;
+    const currentIndex = rootTabs.findIndex(([tab]) => tab === activeTab);
+    const nextIndex = deltaX < 0 ? currentIndex + 1 : currentIndex - 1;
+    if (nextIndex >= 0 && nextIndex < rootTabs.length) setActiveTab(rootTabs[nextIndex][0]);
   };
 
   const handleAddPerson = async () => {
@@ -1068,7 +1109,7 @@ export function FamilyRoots({
       <button className="fr-fullscreen-close" onClick={() => setTreeFullscreen(false)} aria-label="Quitter le plein écran"><X /></button>
       <div className="fr-fullscreen-scroll" ref={fullTreeScrollRef}>
         <div className="fr-fullscreen-scale" style={{ transform: `scale(${treeScale})` }}>
-          <TreeBoard profiles={visibleTreeProfiles} relationships={relationshipGraph} activeFoyerId={activeFoyerId} familyName={familyName} focusProfileId={treeFocusId} selectedProfileId={selectedProfile?.id} expandedHouseholds={expandedHouseholds} onToggleHousehold={toggleHousehold} onOpenBranch={openBranchDetails} onSelect={selectProfile} onAddRelative={editingAllowed ? openAddRelative : undefined} fullScreen />
+          <TreeBoard profiles={visibleTreeProfiles} relationships={relationshipGraph} activeFoyerId={activeFoyerId} familyName={familyName} focusProfileId={treeFocusId} selectedProfileId={selectedProfile?.id} expandedHouseholds={expandedHouseholds} onToggleHousehold={toggleHousehold} onOpenBranch={openBranchDetails} onSelect={selectProfile} onAddRelative={editingAllowed ? openAddRelative : undefined} density={resolvedTreeDensity} fullScreen />
         </div>
       </div>
       <div className="fr-tree-minimap" aria-label="Aperçu des générations">{genealogyLayout.generations.map(generation => <button key={generation.offset} onClick={() => { const focus = generation.unions.flatMap(union => union.profiles)[0]; if (focus) setTreeFocusId(focus.id); }}><span>{generation.unions.reduce((count, union) => count + union.profiles.length, 0)}</span><small>{generation.label}</small></button>)}</div>
@@ -1082,18 +1123,18 @@ export function FamilyRoots({
   );
 
   return (
-    <div className="family-roots">
+    <div className="family-roots" onTouchStart={handleTabTouchStart} onTouchEnd={handleTabTouchEnd}>
       <div className="fr-page">
-        <header className="fr-header">
-          <div className="fr-title"><h1>Racines familiales <TreePine /></h1><p>Notre histoire, nos liens, nos racines</p></div>
-          {canManage ? <button className="fr-icon-button" onClick={() => editingAllowed ? setModal('invite') : setReadingMode(false)} aria-label={editingAllowed ? 'Inviter une branche' : 'Quitter le mode lecture'}>{editingAllowed ? <Share2 /> : <BookOpen />}</button> : <span />}
-        </header>
+        <div className="fr-sticky-shell">
+          <header className="fr-header">
+            <div className="fr-title"><h1>Racines familiales <TreePine /></h1><p>Notre histoire, nos liens, nos racines</p></div>
+            {canManage ? <button className="fr-icon-button" onClick={() => editingAllowed ? setModal('invite') : setReadingMode(false)} aria-label={editingAllowed ? 'Inviter une branche' : 'Quitter le mode lecture'}>{editingAllowed ? <Share2 /> : <BookOpen />}</button> : <span />}
+          </header>
 
-        <nav className="fr-tabs" aria-label="Racines familiales">
-          {([
-            ['tree', 'Arbre'], ['cousins', 'Cousins'], ['branches', 'Branches'], ['map', 'Carte'], ['history', 'Histoire']
-          ] as Array<[RootTab, string]>).map(([tab, label]) => <button key={tab} onClick={() => setActiveTab(tab)} className={activeTab === tab ? 'is-active' : ''}>{label}</button>)}
-        </nav>
+          <nav className="fr-tabs" aria-label="Racines familiales">
+            {rootTabs.map(([tab, label]) => <button key={tab} onClick={() => setActiveTab(tab)} className={activeTab === tab ? 'is-active' : ''}>{label}</button>)}
+          </nav>
+        </div>
 
         {notice && <div className="fr-notice"><Check />{notice}</div>}
         {loading && <div className="fr-loading"><span /><span /><span /></div>}
@@ -1104,7 +1145,9 @@ export function FamilyRoots({
             <div><span className="fr-eyebrow"><Sparkles /> Arbre vivant</span><h2>{familyName}</h2><p>{profiles.length} personne{profiles.length > 1 ? 's' : ''} visible{profiles.length > 1 ? 's' : ''} · {confirmedBranches.length} branche{confirmedBranches.length > 1 ? 's' : ''} liée{confirmedBranches.length > 1 ? 's' : ''}</p></div>
             <div className="fr-tree-hero-actions">{editingAllowed && <button className="fr-review-button" onClick={() => setModal('review-center')}><ShieldCheck /><span>Vérifier</span>{verificationCount > 0 && <b>{verificationCount}</b>}</button>}<button className="fr-expand-tree" onClick={() => setTreeFullscreen(true)}><ZoomIn /><span>Voir tout</span></button></div>
           </section>
-          <div className="fr-tree-toolbar"><div className="fr-tree-scope"><button className={treeScope === 'mine' ? 'is-active' : ''} onClick={() => setTreeScope('mine')}>Ma branche</button><button className={treeScope === 'global' ? 'is-active' : ''} onClick={() => setTreeScope('global')}>Vue globale</button></div><label className="fr-tree-focus"><UserRoundSearch /><span>Voir depuis</span><select value={treeFocusId} onChange={event => setTreeFocusId(event.target.value)}>{visibleTreeProfiles.filter(profile => profile.visibility !== 'masque').map(profile => <option value={profile.id} key={profile.id}>{profile.displayName}</option>)}</select></label>{canManage && <button className={`fr-reading-mode ${readingMode ? 'is-active' : ''}`} onClick={() => setReadingMode(current => !current)}><BookOpen /> {readingMode ? 'Quitter la lecture' : 'Mode lecture'}</button>}<button className="fr-export-booklet" onClick={() => void exportFamilyBooklet()} disabled={busy}><Download /> Livret</button></div>
+          <div className="fr-tree-toolbar"><div className="fr-tree-scope"><button className={treeScope === 'mine' ? 'is-active' : ''} onClick={() => setTreeScope('mine')}>Ma branche</button><button className={treeScope === 'global' ? 'is-active' : ''} onClick={() => setTreeScope('global')}>Vue globale</button></div><label className="fr-tree-focus"><UserRoundSearch /><span>Voir depuis</span><select value={treeFocusId} onChange={event => setTreeFocusId(event.target.value)}>{visibleTreeProfiles.filter(profile => profile.visibility !== 'masque').map(profile => <option value={profile.id} key={profile.id}>{profile.displayName}</option>)}</select></label><div className="fr-density-control" aria-label="Densité de l’arbre">{([['auto', 'Auto'], ['comfortable', 'Aéré'], ['compact', 'Compact']] as Array<[TreeDensity, string]>).map(([value, label]) => <button key={value} className={treeDensity === value ? 'is-active' : ''} onClick={() => setTreeDensity(value)}>{label}</button>)}</div><button className={`fr-legend-toggle ${legendOpen ? 'is-active' : ''}`} onClick={() => setLegendOpen(current => !current)}>Légende</button>{canManage && <button className={`fr-reading-mode ${readingMode ? 'is-active' : ''}`} onClick={() => setReadingMode(current => !current)}><BookOpen /> {readingMode ? 'Quitter la lecture' : 'Mode lecture'}</button>}<button className="fr-export-booklet" onClick={() => void exportFamilyBooklet()} disabled={busy}><Download /> Livret</button></div>
+          {focusedTreeProfile && <div className="fr-tree-position"><UserRoundSearch /><span>Arbre centré sur</span><strong>{focusedTreeProfile.displayName}</strong><small>{describeRelationship(relationshipReferenceId || focusedTreeProfile.id, focusedTreeProfile.id, relationshipGraph) || profileLocation(focusedTreeProfile)}</small></div>}
+          {legendOpen && <div className="fr-tree-legend"><span><i className="is-couple" />Union</span><span><i className="is-child" />Descendance</span><span><i className="is-former" />Ancienne union</span><span><i className="is-branch" />Branche reliée</span><span><i className="is-pending" />Lien à confirmer</span></div>}
           {(readingMode || !canManage) && <div className="fr-reading-banner"><ShieldCheck /><span>Lecture seule : l’arbre peut être consulté sans afficher les outils de modification.</span></div>}
 
           {editingAllowed && pendingConnections.filter(connection => connection.direction === 'incoming').map(connection => (
@@ -1123,7 +1166,7 @@ export function FamilyRoots({
           })}
 
           <section className="fr-tree-surface">
-            <TreeBoard profiles={visibleTreeProfiles} relationships={relationshipGraph} activeFoyerId={activeFoyerId} familyName={familyName} focusProfileId={treeFocusId} selectedProfileId={selectedProfile?.id} expandedHouseholds={expandedHouseholds} onToggleHousehold={toggleHousehold} onOpenBranch={openBranchDetails} onSelect={selectProfile} onAddRelative={editingAllowed ? openAddRelative : undefined} />
+            <TreeBoard profiles={visibleTreeProfiles} relationships={relationshipGraph} activeFoyerId={activeFoyerId} familyName={familyName} focusProfileId={treeFocusId} selectedProfileId={selectedProfile?.id} expandedHouseholds={expandedHouseholds} onToggleHousehold={toggleHousehold} onOpenBranch={openBranchDetails} onSelect={selectProfile} onAddRelative={editingAllowed ? openAddRelative : undefined} density={resolvedTreeDensity} onEmptyAdd={openEmptyRelative} onEmptyLinkBranch={() => editingAllowed && setModal('link-branch')} />
           </section>
 
           {editingAllowed && <div className="fr-tree-actions">
