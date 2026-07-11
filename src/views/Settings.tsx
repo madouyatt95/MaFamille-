@@ -29,7 +29,14 @@ import {
   Crown,
   CreditCard,
   RadioTower,
-  ChevronRight
+  ChevronRight,
+  CalendarDays,
+  FolderLock,
+  HeartPulse,
+  ListTodo,
+  MessageCircle,
+  ShoppingCart,
+  Wallet
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
 import { foyerService } from '../services/foyerService';
@@ -156,6 +163,16 @@ export const Settings: React.FC<SettingsProps> = ({
     : foyer?.isPremium
       ? 'Échéance gérée par le fournisseur'
       : 'Aucun abonnement actif';
+
+  const activeMember = members.find(member => member.id === activeMemberId);
+  const settingsTabs = [
+    { id: 'compte', label: 'Moi', title: 'Mon espace', description: 'Profil, apparence et confort de lecture', icon: UserRound, color: '#9E94FF' },
+    { id: 'famille', label: 'Foyer', title: 'Mon foyer', description: 'Membres, abonnement et règles familiales', icon: Home, color: '#00D26A' },
+    { id: 'alertes', label: 'Alertes', title: 'Mes alertes', description: 'Choisissez ce qui mérite votre attention', icon: Bell, color: '#FFB020' },
+    { id: 'avance', label: 'Plus', title: 'Outils et confidentialité', description: 'Raccourcis, données et informations légales', icon: SlidersHorizontal, color: '#4F8CFF' }
+  ] as const;
+  const activeSettingsTab = settingsTabs.find(tab => tab.id === settingsTab) || settingsTabs[0];
+  const ActiveSettingsIcon = activeSettingsTab.icon;
 
   const handleOpenStripePortal = async () => {
     if (!foyer?.id || openingStripePortal) return;
@@ -577,35 +594,40 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const getRoleLabel = (role: string) => {
     switch (role) {
-      case 'admin': return 'Chef de famille (Admin) 👑';
-      case 'parent': return 'Parent 👨‍👩‍👧';
-      case 'child': return 'Enfant 🧒';
-      case 'guest': return 'Invité (Lecture seule) 👥';
+      case 'admin': return 'Chef de famille';
+      case 'parent': return 'Parent';
+      case 'child': return 'Enfant';
+      case 'guest': return 'Invité';
       default: return role;
     }
   };
 
   return (
-    <div className="pb-32 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] px-4 md:px-8 space-y-6 max-w-xl mx-auto premium-glow-blue">
+    <div className="settings-page mx-auto max-w-3xl space-y-5 px-4 pb-32 pt-[calc(1.25rem+env(safe-area-inset-top,0px))] md:px-8 premium-glow-blue">
       
       {/* Header */}
-      <div className="flex items-center space-x-3">
-        <div className="p-3 rounded-2xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-[#6C5CFF]">
-          <SettingsIcon className="w-6 h-6" />
+      <header className="flex items-center gap-3 border-b border-white/8 pb-5">
+        <MemberAvatar
+          name={activeMember?.name || myMemberProfile?.displayName || user?.email || 'Profil'}
+          photoUrl={profilePhoto}
+          className="h-12 w-12 shrink-0 rounded-2xl border border-[#6C5CFF]/35 shadow-[0_10px_28px_rgba(108,92,255,0.18)]"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h1 className="truncate text-xl font-extrabold tracking-tight text-white">Réglages</h1>
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wider ${foyer?.isPremium ? 'bg-[#FFB020]/12 text-[#FFB020]' : 'bg-white/6 text-white/40'}`}>
+              {foyer?.isPremium ? 'Premium' : 'Gratuit'}
+            </span>
+          </div>
+          <p className="mt-0.5 truncate text-[11px] font-medium text-white/45">{activeMember?.name || myMemberProfile?.displayName || user?.email || 'Votre espace personnel'}</p>
         </div>
-        <div>
-          <h1 className="text-xl font-extrabold text-white tracking-tight">Réglages</h1>
-          <p className="text-xs text-white/50 font-medium">Compte, foyer, alertes et préférences utiles</p>
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/8 bg-white/4 text-white/50">
+          <SettingsIcon className="h-5 w-5" />
         </div>
-      </div>
+      </header>
 
-      <div className="grid grid-cols-4 gap-1.5 rounded-2xl bg-white/5 border border-white/8 p-1">
-        {[
-          { id: 'compte', label: 'Moi', icon: UserRound },
-          { id: 'famille', label: 'Foyer', icon: Home },
-          { id: 'alertes', label: 'Alertes', icon: Bell },
-          { id: 'avance', label: 'Plus', icon: SlidersHorizontal }
-        ].map((tab) => (
+      <div className="grid grid-cols-4 gap-1 rounded-2xl border border-white/8 bg-white/4 p-1.5 shadow-[0_14px_36px_rgba(0,0,0,0.08)]">
+        {settingsTabs.map((tab) => (
           (() => {
             const Icon = tab.icon;
             return (
@@ -613,11 +635,12 @@ export const Settings: React.FC<SettingsProps> = ({
             key={tab.id}
             type="button"
             onClick={() => setSettingsTab(tab.id as typeof settingsTab)}
-            className={`py-2.5 rounded-xl text-[10px] font-extrabold transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+            className={`flex min-h-12 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-extrabold transition-all ${
               settingsTab === tab.id
-                ? 'bg-[#6C5CFF] text-white shadow-md shadow-[#6C5CFF]/20'
-                : 'text-white/45 hover:text-white hover:bg-white/5'
+                ? 'bg-[#6C5CFF] text-white shadow-[0_8px_20px_rgba(108,92,255,0.25)]'
+                : 'text-white/45 hover:bg-white/5 hover:text-white'
             }`}
+            aria-current={settingsTab === tab.id ? 'page' : undefined}
           >
             <Icon className="w-3.5 h-3.5" />
             {tab.label}
@@ -627,22 +650,32 @@ export const Settings: React.FC<SettingsProps> = ({
         ))}
       </div>
 
+      <div className="flex items-center gap-3 px-1 py-1">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ color: activeSettingsTab.color, backgroundColor: `${activeSettingsTab.color}16` }}>
+          <ActiveSettingsIcon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-sm font-black text-white">{activeSettingsTab.title}</h2>
+          <p className="mt-0.5 text-[10px] font-medium text-white/42">{activeSettingsTab.description}</p>
+        </div>
+      </div>
+
       {/* 0. Mon Profil */}
       {settingsTab === 'compte' && (myMemberProfile || activeMemberId) && (
-        <form onSubmit={handleSaveProfile} className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-5 animate-fade-in">
+        <form onSubmit={handleSaveProfile} className="glass-panel animate-fade-in space-y-5 rounded-2xl border border-white/8 p-5">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
               <Sparkles className="w-4 h-4 text-[#6C5CFF]" />
               <span>Mon Profil</span>
             </h3>
-            <span className="text-[9px] font-bold text-[#6C5CFF] bg-[#6C5CFF]/10 px-2 py-0.5 rounded-full uppercase">
-              Rôle : {getRoleLabel((members.find(m => m.id === activeMemberId)?.role) || (myMemberProfile ? myMemberProfile.role : 'Chef de famille'))}
+            <span className="max-w-[48%] truncate rounded-full bg-[#6C5CFF]/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-[#9E94FF]">
+              {getRoleLabel((members.find(m => m.id === activeMemberId)?.role) || (myMemberProfile ? myMemberProfile.role : 'admin'))}
             </span>
           </div>
 
           {/* Profile Photo selector */}
-          <div className="flex flex-col items-center justify-center space-y-4 p-4 bg-white/3 rounded-2xl border border-white/5">
-            <div className="relative group">
+          <div className="flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4">
+            <div className="group relative shrink-0">
               {uploadingPhoto ? (
                 <div className="w-20 h-20 rounded-full border-2 border-[#6C5CFF] bg-white/5 flex items-center justify-center">
                   <RefreshCw className="w-6 h-6 text-[#6C5CFF] animate-spin" />
@@ -651,32 +684,36 @@ export const Settings: React.FC<SettingsProps> = ({
                 <MemberAvatar
                   name={members.find(member => member.id === activeMemberId)?.name || myMemberProfile?.displayName}
                   photoUrl={profilePhoto}
-                  className="w-20 h-20 rounded-full border-2 border-[#6C5CFF] shadow-[0_0_15px_rgba(108,92,255,0.3)]"
+                  className="h-16 w-16 rounded-2xl border-2 border-[#6C5CFF] shadow-[0_8px_24px_rgba(108,92,255,0.22)]"
                 />
               )}
-              <span className="absolute bottom-0 right-0 bg-[#6C5CFF] text-white p-1 rounded-full text-[9px] font-black border border-[#07111F]">
-                📸
+              <span className="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-lg border border-[#07111F] bg-[#6C5CFF] text-white">
+                <Camera className="h-3 w-3" />
               </span>
             </div>
 
             {/* Camera & Gallery buttons */}
-            <div className="flex gap-2 w-full">
+            <div className="min-w-0 flex-1">
+              <strong className="block truncate text-sm text-white">{profileName || 'Votre profil'}</strong>
+              <span className="mt-1 block text-[10px] font-medium leading-relaxed text-white/42">Choisissez une photo nette et bien cadrée.</span>
+              <div className="mt-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => cameraInputRef.current?.click()}
-                className="flex-1 py-2.5 rounded-xl bg-[#6C5CFF]/10 border border-[#6C5CFF]/20 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 hover:bg-[#6C5CFF]/20 active:scale-95 transition-all cursor-pointer"
+                className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/10 px-2 text-[9px] font-black text-white transition-all hover:bg-[#6C5CFF]/20 active:scale-95"
               >
                 <Camera className="w-3.5 h-3.5 text-[#6C5CFF]" />
-                <span>Prendre une photo</span>
+                <span>Appareil</span>
               </button>
               <button
                 type="button"
                 onClick={() => galleryInputRef.current?.click()}
-                className="flex-1 py-2.5 rounded-xl bg-[#00D26A]/10 border border-[#00D26A]/20 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 hover:bg-[#00D26A]/20 active:scale-95 transition-all cursor-pointer"
+                className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-[#00D26A]/20 bg-[#00D26A]/10 px-2 text-[9px] font-black text-white transition-all hover:bg-[#00D26A]/20 active:scale-95"
               >
                 <ImagePlus className="w-3.5 h-3.5 text-[#00D26A]" />
                 <span>Galerie</span>
               </button>
+              </div>
             </div>
             {/* Hidden file inputs */}
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoFile} className="hidden" />
@@ -690,7 +727,7 @@ export const Settings: React.FC<SettingsProps> = ({
             <input
               type="text"
               required
-              placeholder="Ex: prénom du membre..."
+              placeholder="Votre nom d’affichage"
               value={profileName}
               onChange={(e) => setProfileName(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-[#6C5CFF]"
@@ -721,7 +758,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* Modifier mon mot de passe */}
       {settingsTab === 'compte' && user && (
-        <details className="group glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in">
+        <details className="group glass-panel rounded-2xl border border-white/8 p-5 space-y-4 animate-fade-in">
           <summary className="list-none cursor-pointer flex items-center justify-between gap-3">
             <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
               <Lock className="w-4 h-4 text-[#FF4D6D]" />
@@ -775,35 +812,35 @@ export const Settings: React.FC<SettingsProps> = ({
       )}
 
       {settingsTab === 'compte' && user && onDeleteAccount && (
-        <div className="rounded-[28px] border border-red-500/20 bg-red-500/5 p-5 space-y-4">
-          <div className="flex items-start gap-3">
-            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-red-400">
-              <Trash2 className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-xs font-black uppercase tracking-wider text-white">Supprimer mon compte</h3>
-              <p className="mt-1 text-xs leading-relaxed text-white/50">
-                Supprime définitivement votre accès, vos données personnelles et les contenus dont vous êtes l’unique propriétaire.
-              </p>
-            </div>
+        <details className="group rounded-2xl border border-red-500/15 bg-red-500/[0.035] p-4">
+          <summary className="flex cursor-pointer list-none items-center gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-red-500/10 text-red-400"><Trash2 className="h-4 w-4" /></span>
+            <span className="min-w-0 flex-1">
+              <strong className="block text-xs text-white">Zone sensible</strong>
+              <small className="mt-0.5 block text-[9px] text-white/40">Suppression définitive du compte</small>
+            </span>
+            <ChevronRight className="h-4 w-4 text-white/30 transition group-open:rotate-90" />
+          </summary>
+          <div className="mt-4 border-t border-red-500/10 pt-4">
+            <p className="text-[11px] font-medium leading-relaxed text-white/50">Supprime définitivement votre accès, vos données personnelles et les contenus dont vous êtes l’unique propriétaire.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setDeleteAccountConfirmation('');
+                setDeleteAccountError('');
+                setDeleteAccountOpen(true);
+              }}
+              className="mt-3 w-full rounded-xl border border-red-500/25 bg-red-500/10 py-3 text-xs font-black text-red-400 hover:bg-red-500/15"
+            >
+              Supprimer mon compte
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setDeleteAccountConfirmation('');
-              setDeleteAccountError('');
-              setDeleteAccountOpen(true);
-            }}
-            className="w-full rounded-xl border border-red-500/25 bg-red-500/10 py-3 text-xs font-black text-red-400 hover:bg-red-500/15"
-          >
-            Demander la suppression définitive
-          </button>
-        </div>
+        </details>
       )}
 
       {/* Sélecteur de Mode d'Apparence */}
       {settingsTab === 'compte' && (
-      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+      <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
           <Palette className="w-4 h-4 text-[#6C5CFF]" />
           <span>Apparence & Mode visuel</span>
@@ -840,7 +877,7 @@ export const Settings: React.FC<SettingsProps> = ({
       )}
 
       {settingsTab === 'compte' && (
-        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+        <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
           <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white">
             <Accessibility className="h-4 w-4 text-[#00D26A]" />
             Accessibilité
@@ -887,7 +924,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* Notifications Push */}
       {settingsTab === 'alertes' && (
-      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+      <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
             {pushEnabled ? <Bell className="w-4 h-4 text-[#00D26A]" /> : <BellOff className="w-4 h-4 text-white/40" />}
@@ -927,7 +964,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* Recommandations intelligentes */}
       {settingsTab === 'alertes' && (
-      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+      <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
             <Sparkles className="w-4 h-4 text-[#FFB020]" />
@@ -1002,7 +1039,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* Toggles de personnalisation par module */}
       {settingsTab === 'alertes' && (
-      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+      <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
             <Bell className="w-4 h-4 text-[#6C5CFF]" />
@@ -1015,21 +1052,27 @@ export const Settings: React.FC<SettingsProps> = ({
 
         <div className="space-y-3 pt-2">
           {[
-            { key: 'groceries', label: '🛒 Courses & Liste d\'achats' },
-            { key: 'tasks', label: '🧹 Tâches ménagères' },
-            { key: 'agenda', label: '📅 Agenda & Événements' },
-            { key: 'finances', label: '💰 Budget & Épargne' },
-            { key: 'chat', label: '💬 Messages & Chat' },
-            { key: 'health', label: '🏥 Santé & Vaccins' },
-            { key: 'vault', label: '📂 Coffre-fort & Documents' }
+            { key: 'groceries', label: 'Courses et listes', icon: ShoppingCart, color: '#FFB020' },
+            { key: 'tasks', label: 'Tâches familiales', icon: ListTodo, color: '#9E94FF' },
+            { key: 'agenda', label: 'Agenda et événements', icon: CalendarDays, color: '#4F8CFF' },
+            { key: 'finances', label: 'Budget et épargne', icon: Wallet, color: '#00D26A' },
+            { key: 'chat', label: 'Messages', icon: MessageCircle, color: '#37C9FF' },
+            { key: 'health', label: 'Santé', icon: HeartPulse, color: '#FF4D6D' },
+            { key: 'vault', label: 'Coffre-fort', icon: FolderLock, color: '#9E94FF' }
           ].map((item) => {
             const isEnabled = localPrefs[item.key] !== false;
+            const Icon = item.icon;
             return (
-              <div key={item.key} className="flex items-center justify-between p-3 rounded-2xl bg-white/3 border border-white/5">
-                <span className="text-xs font-bold text-white">{item.label}</span>
+              <div key={item.key} className="flex min-h-14 items-center justify-between rounded-xl border border-white/6 bg-white/3 p-3">
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ color: item.color, backgroundColor: `${item.color}16` }}><Icon className="h-4 w-4" /></span>
+                  <span className="truncate text-xs font-bold text-white">{item.label}</span>
+                </span>
                 <button
                   type="button"
                   onClick={() => handleTogglePref(item.key)}
+                  aria-pressed={isEnabled}
+                  aria-label={`${isEnabled ? 'Désactiver' : 'Activer'} les alertes ${item.label}`}
                   className={`w-12 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none cursor-pointer ${
                     isEnabled ? 'bg-[#00D26A]' : 'bg-white/10'
                   }`}
@@ -1049,7 +1092,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* 1. Devise Section */}
       {settingsTab === 'compte' && (
-      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+      <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
           <Coins className="w-4 h-4 text-[#FFB020]" />
           <span>Devise par défaut</span>
@@ -1082,7 +1125,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* 2. Foyer Management Section */}
       {settingsTab === 'famille' && (user && foyer ? (
-        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-5 animate-fade-in">
+        <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-5 animate-fade-in">
           
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2 min-w-0">
@@ -1252,7 +1295,7 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
       ) : (
         /* 3. Authentication Panel (Show if not logged in) */
-        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4 animate-fade-in text-center">
+        <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4 animate-fade-in text-center">
           <div className="space-y-2 py-4">
             <div className="w-12 h-12 rounded-full bg-[#6C5CFF]/10 flex items-center justify-center mx-auto text-[#6C5CFF]">
               <Lock className="w-6 h-6" />
@@ -1283,7 +1326,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* Réglages parentaux avancés */}
       {settingsTab === 'avance' && user && foyer && (!myMemberProfile || ['admin', 'parent'].includes(myMemberProfile.role)) && (
-        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-5 animate-fade-in">
+        <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-5 animate-fade-in">
           <div>
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
               <Shield className="w-4 h-4 text-[#FFB020]" />
@@ -1537,7 +1580,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* 4. Données locales & Sauvegarde */}
       {settingsTab === 'avance' && !user && (
-        <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+        <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
             <Database className="w-4 h-4 text-[#00D26A]" />
             <span>Données locales & Sauvegarde</span>
@@ -1573,7 +1616,7 @@ export const Settings: React.FC<SettingsProps> = ({
       )}
 
       {settingsTab === 'avance' && (
-        <div className="glass-panel space-y-4 rounded-[28px] border border-white/8 p-5">
+        <div className="glass-panel space-y-4 rounded-2xl border border-white/8 p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white">
@@ -1664,7 +1707,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {/* 5. Charte RGPD & Mentions Légales */}
       {settingsTab === 'avance' && (
-      <div className="glass-panel rounded-[28px] border border-white/8 p-5 space-y-4">
+      <div className="glass-panel rounded-2xl border border-white/8 p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
             <Lock className="w-4 h-4 text-[#00D26A]" />
@@ -1758,7 +1801,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       {deleteAccountOpen && (
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/75 p-4 backdrop-blur-sm sm:items-center">
-          <div role="dialog" aria-modal="true" aria-labelledby="delete-account-title" className="w-full max-w-md rounded-[28px] border border-red-500/25 bg-[#0B1728] p-6 shadow-2xl">
+          <div role="dialog" aria-modal="true" aria-labelledby="delete-account-title" className="w-full max-w-md rounded-2xl border border-red-500/25 bg-[#0B1728] p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
                 <div className="rounded-2xl bg-red-500/10 p-3 text-red-400">
