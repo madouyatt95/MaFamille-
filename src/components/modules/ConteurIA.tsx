@@ -17,9 +17,32 @@ import {
   Moon,
   Check,
   RefreshCw,
-  X
+  X,
+  Heart,
+  Library,
+  Pause,
+  Play,
+  Timer,
+  Trash2,
+  Users,
 } from 'lucide-react';
 import { aiQuotaService } from '../../services/aiQuotaService';
+import {
+  ageBandFor,
+  ageGuidance,
+  calculateAge,
+  clearActiveStory,
+  createStoryRecord,
+  getActiveStory,
+  getBedtimePreferences,
+  getStoryLibrary,
+  removeStory,
+  saveBedtimePreferences,
+  saveStory,
+  validateAndSanitizeStory,
+  type BedtimeAgeBand,
+  type BedtimeStory
+} from '../../services/bedtimeStoryService';
 import { MemberAvatar } from '../MemberAvatar';
 
 interface ConteurIAProps {
@@ -63,6 +86,24 @@ const MORALS: Moral[] = [
   { id: 'curiosite', name: 'La Curiosité', emoji: '🔍', desc: 'Savoir s\'émerveiller et explorer le monde pour apprendre' },
   { id: 'perseverance', name: 'La Persévérance', emoji: '🎯', desc: 'Garder le sourire et continuer d\'essayer jusqu\'à réussir ses rêves' }
 ];
+
+const LOCAL_VARIATIONS = [
+  { companion: 'Lumi, une luciole dorée', quest: 'retrouver une mélodie perdue', detail: 'une porte qui ne s’ouvre qu’avec un souvenir heureux' },
+  { companion: 'Nino, un petit renard rêveur', quest: 'rapporter une étoile à sa constellation', detail: 'un chemin de pétales lumineux' },
+  { companion: 'Mila, une chouette minuscule', quest: 'aider la lune à retrouver son éclat', detail: 'une carte dessinée par le vent' },
+  { companion: 'Polo, un nuage qui rit doucement', quest: 'réveiller un jardin endormi', detail: 'trois graines de courage' },
+  { companion: 'Sami, un dragon gros comme une tasse', quest: 'raccompagner un rêve égaré', detail: 'un pont fait de mots gentils' },
+  { companion: 'Naya, une baleine de lumière', quest: 'retrouver la cloche du soir', detail: 'un coquillage qui connaît les berceuses' }
+] as const;
+
+const PERSONAL_THEMES = [
+  ['none', 'Simplement rêver'],
+  ['new-school', 'Une nouvelle école'],
+  ['darkness', 'Apprivoiser le noir'],
+  ['separation', 'Dormir loin d’un parent'],
+  ['confidence', 'Prendre confiance'],
+  ['sibling', 'Accueillir un frère ou une sœur']
+] as const;
 
 // Rich Bedtime Story Database with extremely descriptive, long paragraphs, extensive dialogues, and poetic atmosphere
 const generateExtensiveStory = (hero: string, universeId: string, moralId: string) => {
@@ -306,12 +347,14 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
   // Dynamically build heroes list from real family members passed via props
   const defaultHeroes = (members && members.length > 0)
     ? members.map(m => ({
+        id: m.id,
         name: m.name,
         photoUrl: m.photoUrl,
-        age: m.role === 'Enfant' ? (m.id === '3' ? '12 ans' : m.id === '4' ? '8 ans' : 'Enfant') : m.role
+        age: calculateAge(m.birthDate, m.age),
+        role: m.role
       }))
     : [
-        { name: 'Mon enfant', photoUrl: '', age: 'Enfant' }
+        { id: 'custom-child', name: 'Mon enfant', photoUrl: '', age: null, role: 'enfant' }
       ];
   const firstHeroName = member?.name || defaultHeroes[0]?.name || 'Mon enfant';
 
@@ -322,29 +365,43 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
 
   const [selectedUniverse, setSelectedUniverse] = useState<string>('espace');
   const [selectedMoral, setSelectedMoral] = useState<string>('partage');
+  const [selectedAgeBand, setSelectedAgeBand] = useState<BedtimeAgeBand>(() => ageBandFor(defaultHeroes[0]?.age ?? null));
+  const [selectedCompanion, setSelectedCompanion] = useState<string>('none');
+  const [personalTheme, setPersonalTheme] = useState<string>('none');
+  const [showCreator, setShowCreator] = useState<boolean>(false);
+  const [library, setLibrary] = useState<BedtimeStory[]>(() => getStoryLibrary());
+  const [initialStory] = useState<BedtimeStory | null>(() => getActiveStory());
   
   // Story state
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [genStep, setGenStep] = useState<number>(0);
   const [fallbackNotice, setFallbackNotice] = useState<boolean>(false);
-  const [activeStory, setActiveStory] = useState<any | null>(null);
-  const [currentChapterIndex, setCurrentChapterIndex] = useState<number>(0);
-  const [storyImage, setStoryImage] = useState<string>('');
+  const [activeStory, setActiveStory] = useState<BedtimeStory | null>(initialStory);
+  const [currentChapterIndex, setCurrentChapterIndex] = useState<number>(initialStory?.currentChapter || 0);
+  const [storyImage, setStoryImage] = useState<string>(initialStory?.coverUrl || '');
   const [loadingStoryImage, setLoadingStoryImage] = useState<boolean>(false);
   
   // Text-To-Speech Controls
   const [isReadingAloud, setIsReadingAloud] = useState<boolean>(false);
-  const [speechRate, setSpeechRate] = useState<number>(0.85); // Storytelling speed
-  const [speechPitch, setSpeechPitch] = useState<number>(1.05); // Gentler pitch
-  const [selectedVoiceName, setSelectedVoiceName] = useState<string>('');
+  const initialPreferences = getBedtimePreferences();
+  const [speechRate, setSpeechRate] = useState<number>(initialPreferences.speechRate);
+  const [speechPitch, setSpeechPitch] = useState<number>(initialPreferences.speechPitch);
+  const [selectedVoiceName, setSelectedVoiceName] = useState<string>(initialPreferences.selectedVoiceName);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [showVoiceSettings, setShowVoiceSettings] = useState<boolean>(false);
   const [showAmbientSettings, setShowAmbientSettings] = useState<boolean>(false);
-  const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('xl');
+  const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>(initialPreferences.fontSize);
+  const [continuousReading, setContinuousReading] = useState<boolean>(initialPreferences.continuousReading);
+  const [isSpeechPaused, setIsSpeechPaused] = useState<boolean>(false);
+  const [sleepTimerMinutes, setSleepTimerMinutes] = useState<number>(0);
+  const sleepTimerRef = useRef<number | null>(null);
+  const [ritualEnabled, setRitualEnabled] = useState<boolean>(initialPreferences.ritualEnabled);
+  const [ritualStage, setRitualStage] = useState<'none' | 'breathing' | 'closing'>('none');
+  const ritualPreparedRef = useRef(false);
 
   // Soundscape (local WAV files in public/sounds/)
-  const [ambientSound, setAmbientSound] = useState<'none' | 'rain' | 'crickets' | 'lullaby' | 'ocean' | 'wind' | 'stream'>('none');
-  const [ambientVolume, setAmbientVolume] = useState<number>(0.15);
+  const [ambientSound, setAmbientSound] = useState<'none' | 'rain' | 'crickets' | 'lullaby' | 'ocean' | 'wind' | 'stream'>(initialPreferences.ambientSound);
+  const [ambientVolume, setAmbientVolume] = useState<number>(initialPreferences.ambientVolume);
   const ambientAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // 3D Flip animation triggers
@@ -365,7 +422,7 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
           const googleFrench = french.find(v => v.name.toLowerCase().includes('google'));
           const premiumFrench = french.find(v => v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('soft'));
           const fallback = googleFrench || premiumFrench || french[0];
-          setSelectedVoiceName(fallback.name);
+          setSelectedVoiceName(current => current && french.some(voice => voice.name === current) ? current : fallback.name);
         }
       }
     };
@@ -381,22 +438,29 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
     if (member) {
       setSelectedHero(member.name);
     } else if (members && members.length > 0) {
-      const kids = members.filter(m => m.id === '3' || m.id === '4');
+      const kids = members.filter(m => ['enfant', 'child', 'adolescent'].includes(String(m.role || '').toLowerCase()));
       if (kids.length > 0) {
         setSelectedHero(kids[0].name);
+        setSelectedAgeBand(ageBandFor(calculateAge(kids[0].birthDate, kids[0].age)));
       } else {
         setSelectedHero(members[0].name);
+        setSelectedAgeBand(ageBandFor(calculateAge(members[0].birthDate, members[0].age)));
       }
     } else {
       setSelectedHero('Mon enfant');
     }
   }, [members, member]);
 
+  useEffect(() => {
+    saveBedtimePreferences({ speechRate, speechPitch, selectedVoiceName, fontSize, ambientSound, ambientVolume, continuousReading, ritualEnabled });
+  }, [speechRate, speechPitch, selectedVoiceName, fontSize, ambientSound, ambientVolume, continuousReading, ritualEnabled]);
+
   // Clean up sounds and speech on unmount
   useEffect(() => {
     return () => {
       window.speechSynthesis.cancel();
       stopAmbientSound();
+      if (sleepTimerRef.current) window.clearTimeout(sleepTimerRef.current);
     };
   }, []);
 
@@ -502,9 +566,55 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
     }
   };
 
+  const selectedHeroMember = defaultHeroes.find(hero => hero.name === selectedHero);
+  const selectedCompanionName = selectedCompanion === 'none'
+    ? ''
+    : selectedCompanion === 'animal'
+      ? 'son animal préféré'
+    : defaultHeroes.find(hero => hero.id === selectedCompanion)?.name || selectedCompanion;
+  const localCoverUrl = `/universes/${selectedUniverse}.png`;
+
+  const storeGeneratedStory = (story: Omit<BedtimeStory, 'id' | 'createdAt' | 'updatedAt' | 'currentChapter' | 'favorite' | 'completed'>) => {
+    const record = createStoryRecord(story);
+    setActiveStory(record);
+    setLibrary(saveStory(record));
+    setStoryImage(record.coverUrl);
+    setCurrentChapterIndex(0);
+    setIsGenerating(false);
+    setGenStep(0);
+    setShowCreator(false);
+    setLoadingStoryImage(false);
+    if (onStorySuccess) onStorySuccess();
+  };
+
+  const enrichLocalStory = (rawStory: ReturnType<typeof generateExtensiveStory>, heroName: string) => {
+    const variation = LOCAL_VARIATIONS[Math.floor(Math.random() * LOCAL_VARIATIONS.length)];
+    const companion = selectedCompanionName || variation.companion;
+    const chapters = rawStory.chapters.map((chapter, index) => ({
+      ...chapter,
+      content: [...chapter.content]
+    }));
+    chapters[0].content.unshift(`${heroName} ne partit pas seul(e) ce soir-là. ${companion} l’accompagnait pour ${variation.quest}. Leur premier indice était ${variation.detail}.`);
+    if (personalTheme !== 'none') {
+      const themeLabel = PERSONAL_THEMES.find(([id]) => id === personalTheme)?.[1];
+      chapters[1].content.push(`Au fil de l’aventure, ${heroName} comprit doucement que « ${themeLabel} » pouvait devenir une étape rassurante lorsqu’on avance entouré de personnes qui nous aiment.`);
+    }
+    return {
+      ...rawStory,
+      title: `${heroName} et ${variation.quest}`,
+      chapters
+    };
+  };
+
   const handleStartGeneration = async () => {
-    const finalHeroName = isCustomHero ? customHeroName.trim() : selectedHero;
+    const finalHeroName = (isCustomHero ? customHeroName.trim() : selectedHero).replace(/[<>\n\r]/g, '').slice(0, 40);
     if (!finalHeroName.trim()) return;
+
+    if (ritualEnabled && !ritualPreparedRef.current) {
+      setRitualStage('breathing');
+      return;
+    }
+    ritualPreparedRef.current = false;
 
     // 1. Contrôle d'accès Premium obligatoire
     if (!aiQuotaService.checkAIPremiumAccess(isPremium, onTriggerPaywall)) {
@@ -529,6 +639,9 @@ export const ConteurIA: React.FC<ConteurIAProps> = ({
 Tu dois inventer une histoire merveilleuse, douce, poétique et apaisante pour endormir un enfant nommé ${finalHeroName}.
 L'univers de l'histoire est : "${universe.name} (${universe.desc})".
 La morale ou valeur à transmettre doucement à travers l'histoire est : "${moral.name} (${moral.desc})".
+Le niveau de lecture est ${selectedAgeBand} ans : ${ageGuidance(selectedAgeBand)}.
+${selectedCompanionName ? `Le compagnon de l'aventure est ${selectedCompanionName}.` : ''}
+${personalTheme !== 'none' ? `Le récit aide doucement l'enfant autour de ce sujet : ${PERSONAL_THEMES.find(([id]) => id === personalTheme)?.[1]}.` : ''}
 
 L'histoire doit impérativement être structurée en 3 chapitres progressifs (Chapitre I, Chapitre II, Chapitre III).
 Chaque chapitre doit comporter exactement 2 à 3 longs paragraphes riches en descriptions magiques, en dialogues doux et en ambiance réconfortante propice au sommeil.
@@ -578,44 +691,30 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
         const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
         const parsedStory = cleanAndParseJSON(textResult);
-        if (parsedStory.title && parsedStory.chapters && parsedStory.chapters.length === 3) {
+        const safeChapters = validateAndSanitizeStory(parsedStory.chapters);
+        if (parsedStory.title && safeChapters) {
           setGenStep(3);
-          const { remaining, limit } = aiQuotaService.getQuotaFromResponse(response, isPremium);
+          aiQuotaService.getQuotaFromResponse(response, isPremium);
           
           const story = {
-            title: parsedStory.title,
-            chapters: parsedStory.chapters,
+            title: String(parsedStory.title).replace(/[<>]/g, '').slice(0, 140),
+            chapters: safeChapters,
+            hero: finalHeroName.trim(),
+            heroMemberId: selectedHeroMember?.id,
+            companion: selectedCompanionName,
+            universeId: selectedUniverse,
+            moralId: selectedMoral,
+            ageBand: selectedAgeBand,
+            personalTheme,
             bgGlow: universe.bgGlow,
             emoji: universe.emoji,
             themeColor: universe.themeColor,
+            coverUrl: localCoverUrl,
             isRealAI: true,
-            quotaRemaining: remaining,
-            quotaLimit: limit
           };
 
           setTimeout(() => {
-            setActiveStory(story);
-            if (onStorySuccess) onStorySuccess();
-            setCurrentChapterIndex(0);
-            setIsGenerating(false);
-            setGenStep(0);
-
-            // Charger l'illustration avec pollinations
-            setLoadingStoryImage(true);
-            const finalPrompt = encodeURIComponent(`dreamy fairytale watercolor children book illustration of ${story.title}, magical landscape in ${universe.name}, warm soft glow, master key art, 3d pixar fantasy style, vivid colors`);
-            const seed = Math.floor(Math.random() * 1000000);
-            const generatedUrl = `https://image.pollinations.ai/prompt/${finalPrompt}?width=600&height=800&nologo=true&seed=${seed}`;
-
-            const img = new Image();
-            img.src = generatedUrl;
-            img.onload = () => {
-              setStoryImage(generatedUrl);
-              setLoadingStoryImage(false);
-            };
-            img.onerror = () => {
-              setStoryImage(`https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?w=600&q=80&sig=${seed}`);
-              setLoadingStoryImage(false);
-            };
+            storeGeneratedStory(story);
           }, 1000);
           return;
         } else {
@@ -633,16 +732,22 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
       setTimeout(() => {
         setGenStep(3);
         setTimeout(() => {
-          const story = generateExtensiveStory(finalHeroName.trim(), selectedUniverse, selectedMoral);
+          const story = enrichLocalStory(generateExtensiveStory(finalHeroName.trim(), selectedUniverse, selectedMoral), finalHeroName.trim());
           
           const remainingCalls = aiQuotaService.getRemainingCalls(isPremium);
           const isQuotaFallback = isPremium && remainingCalls === 0;
 
-          setActiveStory(story);
-          if (onStorySuccess) onStorySuccess();
-          setCurrentChapterIndex(0);
-          setIsGenerating(false);
-          setGenStep(0);
+          storeGeneratedStory({
+            ...story,
+            hero: finalHeroName.trim(),
+            heroMemberId: selectedHeroMember?.id,
+            companion: selectedCompanionName,
+            universeId: selectedUniverse,
+            moralId: selectedMoral,
+            ageBand: selectedAgeBand,
+            personalTheme,
+            coverUrl: localCoverUrl
+          });
 
           if (isQuotaFallback) {
             console.info("[ConteurIA] Quota quotidien d'IA réelle épuisé. Basculement sur le Conteur local.");
@@ -651,24 +756,6 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
           } else {
             console.info("[ConteurIA] Basculement sur le Conteur local (compte non-Premium).");
           }
-
-          // Lancer le chargement de l'illustration d'IA céleste !
-          setLoadingStoryImage(true);
-          const universeName = UNIVERSES.find(u => u.id === selectedUniverse)?.name || selectedUniverse;
-          const finalPrompt = encodeURIComponent(`dreamy fairytale watercolor children book illustration of ${story.title}, magical landscape in ${universeName}, warm soft glow, master key art, 3d pixar fantasy style, vivid colors`);
-          const seed = Math.floor(Math.random() * 1000000);
-          const generatedUrl = `https://image.pollinations.ai/prompt/${finalPrompt}?width=600&height=800&nologo=true&seed=${seed}`;
-
-          const img = new Image();
-          img.src = generatedUrl;
-          img.onload = () => {
-            setStoryImage(generatedUrl);
-            setLoadingStoryImage(false);
-          };
-          img.onerror = () => {
-            setStoryImage(`https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?w=600&q=80&sig=${seed}`);
-            setLoadingStoryImage(false);
-          };
 
         }, 1000);
       }, 1000);
@@ -686,6 +773,11 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 
     setTimeout(() => {
       setCurrentChapterIndex(index);
+      if (activeStory) {
+        const updated = { ...activeStory, currentChapter: index };
+        setActiveStory(updated);
+        setLibrary(saveStory(updated));
+      }
       setIsFlipping(false);
     }, 550); // half second flip duration
   };
@@ -703,18 +795,11 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
     }
   };
 
-  // Upgraded Premium TTS Voice Engine
-  const handleToggleReadAloud = () => {
+  const speakChapter = (chapterIndex: number) => {
     if (!activeStory) return;
-
-    if (isReadingAloud) {
-      window.speechSynthesis.cancel();
-      setIsReadingAloud(false);
-      return;
-    }
-
-    // Combine all paragraphs of the current chapter for a long reading
-    const textToRead = activeStory.chapters[currentChapterIndex].content.join(' ');
+    const chapter = activeStory.chapters[chapterIndex];
+    if (!chapter) return;
+    const textToRead = `${chapter.title}. ${chapter.content.join(' ')}`;
     const utterance = new SpeechSynthesisUtterance(textToRead);
     
     utterance.lang = 'fr-FR';
@@ -727,7 +812,23 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
     }
 
     utterance.onend = () => {
-      setIsReadingAloud(false);
+      if (continuousReading && chapterIndex < activeStory.chapters.length - 1) {
+        const nextIndex = chapterIndex + 1;
+        setCurrentChapterIndex(nextIndex);
+        const updated = { ...activeStory, currentChapter: nextIndex };
+        setActiveStory(updated);
+        setLibrary(saveStory(updated));
+        window.setTimeout(() => speakChapter(nextIndex), 350);
+      } else {
+        setIsReadingAloud(false);
+        setIsSpeechPaused(false);
+        if (chapterIndex === activeStory.chapters.length - 1) {
+          const completed = { ...activeStory, currentChapter: chapterIndex, completed: true };
+          setActiveStory(completed);
+          setLibrary(saveStory(completed));
+          if (ritualEnabled) setRitualStage('closing');
+        }
+      }
     };
 
     utterance.onerror = () => {
@@ -735,7 +836,78 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
     };
 
     setIsReadingAloud(true);
+    setIsSpeechPaused(false);
     window.speechSynthesis.speak(utterance);
+  };
+
+  const handleToggleReadAloud = () => {
+    if (!activeStory) return;
+    if (isReadingAloud && !isSpeechPaused) {
+      window.speechSynthesis.pause();
+      setIsSpeechPaused(true);
+      return;
+    }
+    if (isReadingAloud && isSpeechPaused) {
+      window.speechSynthesis.resume();
+      setIsSpeechPaused(false);
+      return;
+    }
+    speakChapter(currentChapterIndex);
+  };
+
+  const stopReading = () => {
+    window.speechSynthesis.cancel();
+    setIsReadingAloud(false);
+    setIsSpeechPaused(false);
+  };
+
+  const configureSleepTimer = (minutes: number) => {
+    if (sleepTimerRef.current) window.clearTimeout(sleepTimerRef.current);
+    setSleepTimerMinutes(minutes);
+    if (minutes > 0) {
+      sleepTimerRef.current = window.setTimeout(() => {
+        stopReading();
+        if (ambientAudioRef.current) {
+          const fade = window.setInterval(() => {
+            if (!ambientAudioRef.current || ambientAudioRef.current.volume <= 0.02) {
+              window.clearInterval(fade);
+              stopAmbientSound();
+              return;
+            }
+            ambientAudioRef.current.volume = Math.max(0, ambientAudioRef.current.volume - 0.02);
+          }, 250);
+        }
+        setSleepTimerMinutes(0);
+      }, minutes * 60_000);
+    }
+  };
+
+  const openSavedStory = (story: BedtimeStory) => {
+    stopReading();
+    setActiveStory(story);
+    setSelectedHero(story.hero);
+    setSelectedUniverse(story.universeId);
+    setSelectedMoral(story.moralId);
+    setSelectedAgeBand(story.ageBand);
+    setCurrentChapterIndex(story.currentChapter || 0);
+    setStoryImage(story.coverUrl);
+    setShowCreator(false);
+    saveStory(story);
+  };
+
+  const toggleFavorite = (story: BedtimeStory) => {
+    const updated = { ...story, favorite: !story.favorite };
+    setLibrary(saveStory(updated));
+    if (activeStory?.id === story.id) setActiveStory(updated);
+  };
+
+  const finishStory = () => {
+    if (!activeStory) return;
+    const completed = { ...activeStory, currentChapter: activeStory.chapters.length - 1, completed: true };
+    setActiveStory(completed);
+    setLibrary(saveStory(completed));
+    if (ritualEnabled) setRitualStage('closing');
+    else handleReset();
   };
 
   const handleReset = () => {
@@ -744,7 +916,10 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
     stopAmbientSound();
     setAmbientSound('none');
     setActiveStory(null);
+    clearActiveStory();
     setCurrentChapterIndex(0);
+    setRitualStage('none');
+    setShowCreator(true);
   };
 
   return (
@@ -864,9 +1039,55 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
 
       {/* DYNAMIC SCREEN LAYOUT */}
       <div className="relative z-10 my-auto py-6 flex flex-col items-center justify-center w-full min-h-[460px] book-container">
+
+        {!isGenerating && !activeStory && !showCreator && (
+          <div className="conteur-home w-full max-w-5xl space-y-6 animate-fade-in">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[#FFB020]"><Moon className="h-4 w-4" /> Le rituel du soir</span>
+                <h2 className="mt-2 text-2xl font-black text-white sm:text-3xl">Une nouvelle histoire avant de dormir</h2>
+                <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/55">Retrouvez vos histoires préférées ou créez un nouveau voyage adapté à l’âge et au moment vécu par votre enfant.</p>
+              </div>
+              {!isKidMode && <button onClick={onBack} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white/65" aria-label="Retour"><ArrowLeft className="h-5 w-5" /></button>}
+            </div>
+
+            {library.length > 0 && (
+              <button onClick={() => openSavedStory(library[0])} className="group relative w-full overflow-hidden rounded-[26px] border border-white/10 text-left shadow-2xl">
+                <img src={library[0].coverUrl} alt="" className="h-56 w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#07111F] via-[#07111F]/35 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-5">
+                  <div><span className="text-xs font-black uppercase tracking-wide text-[#FFB020]">Reprendre l’histoire</span><h3 className="mt-1 text-xl font-black text-white">{library[0].title}</h3><p className="mt-1 text-xs font-bold text-white/55">Chapitre {Math.min(library[0].currentChapter + 1, library[0].chapters.length)} sur {library[0].chapters.length} · {library[0].hero}</p></div>
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#6C5CFF] text-white"><Play className="h-5 w-5 fill-current" /></span>
+                </div>
+              </button>
+            )}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button onClick={() => setShowCreator(true)} className="flex min-h-24 items-center gap-4 rounded-2xl border border-[#7C3AED]/35 bg-[#7C3AED]/12 p-4 text-left text-white"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#7C3AED]"><Sparkles className="h-5 w-5" /></span><span><strong className="block text-sm font-black">Créer une histoire</strong><small className="mt-1 block text-xs text-white/50">Âge, univers, proche et sujet du moment</small></span></button>
+              <button onClick={() => setRitualEnabled(current => !current)} className={`flex min-h-24 items-center gap-4 rounded-2xl border p-4 text-left text-white ${ritualEnabled ? 'border-[#00D26A]/35 bg-[#00D26A]/10' : 'border-white/10 bg-white/5'}`}><span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/8"><Moon className="h-5 w-5 text-[#00D26A]" /></span><span><strong className="block text-sm font-black">Rituel guidé</strong><small className="mt-1 block text-xs text-white/50">Respiration, histoire et phrase rassurante</small></span><span className="ml-auto text-xs font-black text-[#00D26A]">{ritualEnabled ? 'Activé' : 'Activer'}</span></button>
+            </div>
+
+            {library.length > 0 && (
+              <section className="space-y-3">
+                <div className="flex items-center justify-between"><h3 className="flex items-center gap-2 text-sm font-black text-white"><Library className="h-4 w-4 text-[#a78bfa]" /> Mes histoires</h3><span className="text-xs font-bold text-white/35">Conservées sur cet appareil</span></div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {library.slice(0, 6).map(story => <article key={story.id} className="overflow-hidden rounded-2xl border border-white/8 bg-white/4"><button onClick={() => openSavedStory(story)} className="w-full text-left"><img src={story.coverUrl} alt="" loading="lazy" className="h-28 w-full object-cover" /><span className="block p-3"><strong className="line-clamp-2 text-xs font-black text-white">{story.title}</strong><small className="mt-1 block text-[10px] text-white/40">{story.hero} · {story.ageBand} ans</small></span></button><div className="flex justify-end gap-1 border-t border-white/6 px-2 py-1"><button onClick={() => toggleFavorite(story)} className={`grid h-8 w-8 place-items-center ${story.favorite ? 'text-[#FF4D6D]' : 'text-white/35'}`} aria-label="Favori"><Heart className={`h-4 w-4 ${story.favorite ? 'fill-current' : ''}`} /></button><button onClick={() => setLibrary(removeStory(story.id))} className="grid h-8 w-8 place-items-center text-white/30" aria-label="Supprimer"><Trash2 className="h-4 w-4" /></button></div></article>)}
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+
+        {ritualStage === 'breathing' && !isGenerating && !activeStory && (
+          <div className="conteur-ritual-panel w-full max-w-md space-y-6 rounded-[28px] border border-[#7C3AED]/25 bg-[#0B1424]/95 p-7 text-center shadow-2xl">
+            <div className="mx-auto grid h-28 w-28 place-items-center rounded-full border border-[#a78bfa]/30 bg-[#7C3AED]/15 animate-pulse-slow"><Moon className="h-10 w-10 text-[#a78bfa]" /></div>
+            <div><span className="text-xs font-black uppercase tracking-wide text-[#a78bfa]">Respirons ensemble</span><h3 className="mt-2 text-xl font-black text-white">On inspire doucement… puis on souffle</h3><p className="mt-2 text-sm leading-relaxed text-white/55">Trois respirations calmes avant d’ouvrir la porte de l’histoire.</p></div>
+            <button onClick={() => { ritualPreparedRef.current = true; setRitualStage('none'); void handleStartGeneration(); }} className="w-full rounded-2xl bg-[#6C5CFF] px-5 py-4 text-sm font-black text-white">Je suis prêt, commencer</button>
+          </div>
+        )}
         
         {/* SCREEN 1: THE INPUTS PANEL */}
-        {!isGenerating && !activeStory && (
+        {!isGenerating && !activeStory && showCreator && ritualStage !== 'breathing' && (
           <div className="w-full max-w-5xl space-y-7 animate-fade-in px-1 md:px-4">
             
             {/* Header Title with premium cosmic styling */}
@@ -945,6 +1166,7 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                         onClick={() => {
                           setIsCustomHero(false);
                           setSelectedHero(heroItem.name);
+                          setSelectedAgeBand(ageBandFor(heroItem.age));
                         }}
                         className={`flex flex-col items-center p-3 rounded-2xl border transition-all duration-350 cursor-pointer snap-start shrink-0 min-w-[85px] ${
                           isSelected 
@@ -1002,10 +1224,29 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     placeholder="Saisissez son prénom..."
                     value={customHeroName}
                     onChange={(e) => setCustomHeroName(e.target.value)}
+                    maxLength={40}
                     className="w-full max-w-lg bg-[#0d1627] border border-white/10 rounded-2xl px-4 py-3.5 text-xs text-white placeholder-white/35 focus:outline-none focus:border-[#7C3AED] focus:shadow-[0_0_12px_rgba(124,58,237,0.2)] transition-all animate-scale-up"
                   />
                 )}
 
+              </div>
+
+              <div className="relative z-10 grid gap-4 border-t border-white/6 pt-5 sm:grid-cols-3">
+                <label className="space-y-2 text-xs font-black text-white/70">Niveau de lecture
+                  <select value={selectedAgeBand} onChange={event => setSelectedAgeBand(event.target.value as BedtimeAgeBand)} className="w-full rounded-xl border border-white/10 bg-[#0d1627] px-3 py-3 text-xs text-white">
+                    <option value="3-5">3 à 5 ans</option><option value="6-8">6 à 8 ans</option><option value="9-12">9 à 12 ans</option>
+                  </select>
+                </label>
+                <label className="space-y-2 text-xs font-black text-white/70"><span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> Compagnon</span>
+                  <select value={selectedCompanion} onChange={event => setSelectedCompanion(event.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0d1627] px-3 py-3 text-xs text-white">
+                    <option value="none">Surprise magique</option>{defaultHeroes.filter(hero => hero.name !== selectedHero).map(hero => <option key={hero.id} value={hero.id}>{hero.name}</option>)}<option value="animal">Son animal préféré</option>
+                  </select>
+                </label>
+                <label className="space-y-2 text-xs font-black text-white/70">Sujet du moment
+                  <select value={personalTheme} onChange={event => setPersonalTheme(event.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0d1627] px-3 py-3 text-xs text-white">
+                    {PERSONAL_THEMES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                  </select>
+                </label>
               </div>
 
               {/* STEP 2: SELECT MAGICAL UNIVERSE */}
@@ -1039,6 +1280,8 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                           <img 
                             src={imageUrl} 
                             alt={u.name}
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[3000ms] ease-out filter brightness-[0.75] contrast-[1.05]"
                           />
                           <div className="conteur-universe-overlay absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent"></div>
@@ -1187,12 +1430,12 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0B1424] via-black/20 to-black/15" />
                 <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
-                  <p className="text-xs font-bold text-[#FFB020]">{selectedHero} · {UNIVERSES.find(u => u.id === selectedUniverse)?.name}</p>
+                  <div className="flex items-center justify-between gap-3"><p className="text-xs font-bold text-[#FFB020]">{activeStory.hero} · {UNIVERSES.find(u => u.id === activeStory.universeId)?.name}</p><button onClick={() => toggleFavorite(activeStory)} className={`grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/25 ${activeStory.favorite ? 'text-[#FF4D6D]' : 'text-white'}`} aria-label="Ajouter aux favoris"><Heart className={`h-4 w-4 ${activeStory.favorite ? 'fill-current' : ''}`} /></button></div>
                   <h2 className="mt-1 max-w-2xl text-xl sm:text-2xl font-black text-white leading-tight">{activeStory.title}</h2>
                 </div>
               </div>
 
-              <div className={`p-5 sm:p-8 ${isFlipping ? (flipDirection === 'next' ? 'flip-active-next' : 'flip-active-prev') : ''}`}>
+              <div className={`conteur-story-body p-5 sm:p-8 ${isFlipping ? (flipDirection === 'next' ? 'flip-active-next' : 'flip-active-prev') : ''}`}>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 pb-4">
                   <div>
                     <p className="text-xs font-bold text-white/45">Chapitre {currentChapterIndex + 1} sur {activeStory.chapters.length}</p>
@@ -1206,8 +1449,8 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                         : 'bg-[#6C5CFF] border-[#6C5CFF] text-white'
                     }`}
                   >
-                    {isReadingAloud ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                    <span>{isReadingAloud ? 'Arrêter' : 'Écouter'}</span>
+                    {isReadingAloud && !isSpeechPaused ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    <span>{isReadingAloud && !isSpeechPaused ? 'Pause' : isSpeechPaused ? 'Reprendre' : 'Écouter'}</span>
                   </button>
                 </div>
 
@@ -1232,7 +1475,8 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                 {isReadingAloud && (
                   <div className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-[#FF4D6D]/20 bg-[#FF4D6D]/8 py-2 text-xs font-bold text-[#FF4D6D]">
                     <Volume2 className="w-3.5 h-3.5 animate-pulse" />
-                    Lecture du chapitre en cours
+                    {isSpeechPaused ? 'Lecture en pause' : continuousReading ? 'Lecture continue de l’histoire' : 'Lecture du chapitre en cours'}
+                    <button onClick={stopReading} className="ml-2 rounded-lg border border-[#FF4D6D]/25 px-2 py-1">Arrêter</button>
                   </div>
                 )}
 
@@ -1274,9 +1518,9 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                         <ChevronRight className="w-4 h-4" />
                       </button>
                     ) : (
-                      <button onClick={handleReset} className="h-11 px-4 rounded-xl bg-white/10 border border-white/10 text-white font-black text-sm flex items-center gap-1.5">
+                      <button onClick={finishStory} className="h-11 px-4 rounded-xl bg-white/10 border border-white/10 text-white font-black text-sm flex items-center gap-1.5">
                         <RotateCcw className="w-4 h-4" />
-                        <span>Nouvelle</span>
+                        <span>Terminer</span>
                       </button>
                     )}
                   </div>
@@ -1313,6 +1557,10 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     <input type="range" min="0.8" max="1.3" step="0.05" value={speechPitch} onChange={(e) => setSpeechPitch(parseFloat(e.target.value))} className="mt-2 w-full accent-[#FFB020]" />
                   </label>
                 </div>
+                <div className="grid gap-3 border-t border-white/8 pt-4 sm:grid-cols-2">
+                  <button onClick={() => setContinuousReading(current => !current)} className={`flex min-h-11 items-center justify-between rounded-xl border px-3 text-xs font-black ${continuousReading ? 'border-[#00D26A]/35 bg-[#00D26A]/10 text-[#00D26A]' : 'border-white/10 bg-white/5 text-white/55'}`}><span>Lecture de toute l’histoire</span><span>{continuousReading ? 'Oui' : 'Non'}</span></button>
+                  <label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white/60"><Timer className="h-4 w-4 text-[#FFB020]" /><span>Arrêt</span><select value={sleepTimerMinutes} onChange={event => configureSleepTimer(Number(event.target.value))} className="ml-auto bg-transparent text-white"><option value="0">Aucun</option><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option></select></label>
+                </div>
               </div>
             )}
 
@@ -1345,6 +1593,15 @@ Renvoie STRICTEMENT un objet JSON brut valide, sans balises markdown (pas de \`\
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {ritualStage === 'closing' && (
+              <div className="rounded-[24px] border border-[#00D26A]/20 bg-[#00D26A]/8 p-6 text-center">
+                <Moon className="mx-auto h-8 w-8 text-[#00D26A]" />
+                <h3 className="mt-3 text-lg font-black text-white">L’histoire est terminée</h3>
+                <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-white/60">{activeStory.hero}, tu peux fermer les yeux tranquillement. Les personnes qui t’aiment veillent sur toi, et demain apportera de nouvelles découvertes.</p>
+                <button onClick={handleReset} className="mt-4 rounded-xl bg-[#00D26A] px-5 py-3 text-xs font-black text-[#07111F]">Bonne nuit</button>
               </div>
             )}
           </div>

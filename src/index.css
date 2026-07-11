@@ -1468,9 +1468,47 @@ html,
 }
 
 .theme-sepia .conteur-config-panel,
-.theme-sepia .conteur-settings-panel {
+.theme-sepia .conteur-settings-panel,
+.theme-sepia .conteur-home,
+.theme-sepia .conteur-ritual-panel {
   background: rgba(255, 249, 237, 0.92) !important;
   border-color: #d9c5a6 !important;
+}
+
+.theme-light .conteur-home,
+.theme-light .conteur-ritual-panel {
+  color: #172033 !important;
+}
+
+.theme-light .conteur-home [class*="text-white"],
+.theme-light .conteur-ritual-panel [class*="text-white"],
+.theme-light .conteur-settings-panel [class*="text-white"] {
+  color: #26344d !important;
+}
+
+.theme-sepia .conteur-home [class*="text-white"],
+.theme-sepia .conteur-ritual-panel [class*="text-white"],
+.theme-sepia .conteur-settings-panel [class*="text-white"] {
+  color: #4f3b29 !important;
+}
+
+.theme-light .conteur-home article,
+.theme-light .conteur-home > button,
+.theme-light .conteur-ritual-panel {
+  border-color: #d8e0f0 !important;
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.theme-sepia .conteur-home article,
+.theme-sepia .conteur-home > button,
+.theme-sepia .conteur-ritual-panel {
+  border-color: #d9c5a6 !important;
+  background-color: rgba(255, 249, 237, 0.92) !important;
+}
+
+.theme-light .conteur-home button:has(> img) [class*="text-white"],
+.theme-sepia .conteur-home button:has(> img) [class*="text-white"] {
+  color: #ffffff !important;
 }
 
 .theme-light .conteur-story-card {
@@ -1489,6 +1527,19 @@ html,
 
 .theme-sepia .conteur-story-card p[class*="font-serif"] {
   color: #4f3b29 !important;
+}
+
+.theme-light .conteur-story-body [class*="text-white"] {
+  color: #26344d !important;
+}
+
+.theme-sepia .conteur-story-body [class*="text-white"] {
+  color: #4f3b29 !important;
+}
+
+.theme-light .conteur-story-body button.bg-\[\#6C5CFF\],
+.theme-sepia .conteur-story-body button.bg-\[\#6C5CFF\] {
+  color: #ffffff !important;
 }
 
 .theme-light .conteur-reader-toolbar {
