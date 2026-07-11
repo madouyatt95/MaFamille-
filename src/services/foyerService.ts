@@ -989,11 +989,21 @@ export const foyerService = {
     const supabase = getSupabaseClient();
     if (!supabase) return [];
 
-    const { data, error } = await supabase
-      .from('family_join_requests')
-      .select('*')
-      .eq('family_id', familyId)
-      .eq('status', 'pending');
+    let { data, error } = await supabase.rpc('get_pending_family_join_requests', {
+      p_family_id: familyId
+    });
+
+    // Keep compatibility while the database migration is being deployed.
+    if (error) {
+      const fallback = await supabase
+        .from('family_join_requests')
+        .select('*')
+        .eq('family_id', familyId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) {
       console.error("Erreur lors de la récupération des demandes en attente :", error);
@@ -1012,6 +1022,25 @@ export const foyerService = {
       requestedByCode: row.requested_by_code,
       requestedByQr: row.requested_by_qr
     }));
+  },
+
+  subscribeToJoinRequests(familyId: string, onEvent: (payload: RealtimePayload) => void) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return null;
+
+    return supabase
+      .channel(`family-join-requests:${familyId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'family_join_requests',
+          filter: `family_id=eq.${familyId}`
+        },
+        payload => onEvent(payload as unknown as RealtimePayload)
+      )
+      .subscribe();
   },
 
   /**

@@ -107,19 +107,45 @@ export const Membres: React.FC<MembresProps> = ({
   // Family join requests
   const [pendingRequests, setPendingRequests] = useState<JoinRequestSummary[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<JoinRequestSummary | null>(null);
+  const activeFoyerId = foyer?.id || '';
 
-  // Load pending join requests when foyer changes
-  React.useEffect(() => {
-    if (foyer) {
-      foyerService.getPendingJoinRequests(foyer.id).then((reqs) => {
-        queueMicrotask(() => setPendingRequests(reqs));
-      }).catch(err => {
-        console.error("Failed to fetch pending join requests:", err);
-      });
-    } else {
-      queueMicrotask(() => setPendingRequests([]));
+  const refreshPendingRequests = React.useCallback(async () => {
+    if (!activeFoyerId) {
+      setPendingRequests([]);
+      return;
     }
-  }, [foyer]);
+    try {
+      const requests = await foyerService.getPendingJoinRequests(activeFoyerId);
+      setPendingRequests(requests);
+      setSelectedRequest(current => current && requests.some(request => request.id === current.id) ? current : null);
+    } catch (error) {
+      console.error('Failed to fetch pending join requests:', error);
+    }
+  }, [activeFoyerId]);
+
+  // Keep requests current without polling: initial load, realtime and app focus.
+  React.useEffect(() => {
+    if (!activeFoyerId) {
+      queueMicrotask(() => setPendingRequests([]));
+      return;
+    }
+
+    queueMicrotask(() => void refreshPendingRequests());
+    const channel = foyerService.subscribeToJoinRequests(activeFoyerId, () => {
+      void refreshPendingRequests();
+    });
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refreshPendingRequests();
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+
+    return () => {
+      channel?.unsubscribe();
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [activeFoyerId, refreshPendingRequests]);
 
   // No-foyer state variables
   const [noFoyerAction, setNoFoyerAction] = useState<'join' | 'create'>('join');
