@@ -10,6 +10,7 @@ import {
   CircleHelp,
   ClipboardCheck,
   Copy,
+  ExternalLink,
   FileText,
   FolderLock,
   Hand,
@@ -48,6 +49,8 @@ type ShortcutGuideTab = 'actions' | 'iphone' | 'nfc' | 'preferences';
 interface ShortcutCenterProps {
   isOpen: boolean;
   isNativeApp: boolean;
+  initialTab?: ShortcutGuideTab;
+  focusWalletSetup?: boolean;
   accounts?: Account[];
   onClose: () => void;
   onTestQuickAction?: (action: QuickActionId, params?: Record<string, string | number | undefined>) => void;
@@ -148,6 +151,8 @@ const NFC_STEPS = [
 export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
   isOpen,
   isNativeApp,
+  initialTab = 'actions',
+  focusWalletSetup = false,
   accounts = [],
   onClose,
   onTestQuickAction
@@ -178,11 +183,12 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     const refreshTimer = window.setTimeout(() => {
+      setActiveTab(initialTab);
       setPreferences(getQuickActionPreferences());
       setHistory(getQuickActionHistory());
     }, 0);
     return () => window.clearTimeout(refreshTimer);
-  }, [isOpen]);
+  }, [initialTab, isOpen]);
 
   if (!isOpen) return null;
 
@@ -216,6 +222,20 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
     onTestQuickAction?.(action, params);
   };
 
+  const openShortcutsApp = () => {
+    window.location.href = 'shortcuts://';
+  };
+
+  const testWalletForm = () => {
+    runAction('paid', {
+      amount: 12.5,
+      merchant: 'Commerce test',
+      currency: 'EUR',
+      source: 'apple-wallet',
+      paymentMethod: 'Apple Pay'
+    });
+  };
+
   const clearHistory = () => {
     clearQuickActionHistory();
     setHistory([]);
@@ -234,6 +254,8 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
     setQrImage(image);
     setQrLoading(false);
   };
+
+  const walletSetupSteps = isNativeApp ? IPHONE_METHODS[1].steps : WALLET_WEB_STEPS;
 
   return (
     <div
@@ -420,11 +442,50 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
               <p className="mt-1 text-[11px] leading-relaxed text-white/45">Commencez par ouvrir l’application une fois après chaque nouvelle installation.</p>
             </div>
 
-            {IPHONE_METHODS.map((method) => {
+            <article className={`overflow-hidden rounded-[24px] border p-4 ${focusWalletSetup ? 'border-[#00D26A]/35 bg-[#00D26A]/8 shadow-[0_16px_40px_rgba(0,210,106,0.08)]' : 'border-white/8 bg-white/[0.035]'}`}>
+              <div className="flex items-start gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#00D26A]/14 text-[#00D26A]">
+                  <Wallet className="h-5 w-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-[#00D26A]">Installation guidée</span>
+                  <h3 className="mt-1 text-sm font-black text-white">Paiement Wallet vers Budget</h3>
+                  <p className="mt-1 text-[10px] font-medium leading-relaxed text-white/50">Après un paiement Apple Pay, le vrai formulaire de dépense s’ouvre avec les informations disponibles, sans enregistrer automatiquement.</p>
+                </div>
+              </div>
+
+              <ol className="mt-4 space-y-3 rounded-2xl border border-white/8 bg-black/10 p-3">
+                {walletSetupSteps.map((step, index) => (
+                  <li key={step} className="flex gap-3 text-[11px] font-medium leading-relaxed text-white/60">
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#00D26A]/14 text-[9px] font-black text-[#00D26A]">{index + 1}</span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={openShortcutsApp}
+                  className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#00D26A] px-3 text-[10px] font-black text-[#04150D] transition active:scale-[0.98]"
+                >
+                  <ExternalLink className="h-4 w-4" /> Ouvrir Raccourcis
+                </button>
+                <button
+                  type="button"
+                  onClick={testWalletForm}
+                  disabled={!onTestQuickAction}
+                  className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-[10px] font-black text-white/75 transition active:scale-[0.98] disabled:opacity-40"
+                >
+                  <ClipboardCheck className="h-4 w-4" /> Tester le formulaire
+                </button>
+              </div>
+              <p className="mt-3 text-[9px] font-medium leading-relaxed text-white/35">Apple impose de créer cette automatisation personnelle dans Raccourcis. MyFamily+ ne peut pas l’activer à votre place.</p>
+            </article>
+
+            {IPHONE_METHODS.filter((method) => method.title !== 'Après un paiement Apple Pay').map((method) => {
               const Icon = method.icon;
-              const steps = method.title === 'Après un paiement Apple Pay' && !isNativeApp
-                ? WALLET_WEB_STEPS
-                : method.steps;
+              const steps = method.steps;
               return (
                 <details key={method.title} className="group overflow-hidden rounded-[22px] border border-white/8 bg-white/[0.035]">
                   <summary className="flex cursor-pointer list-none items-center gap-3 p-4">

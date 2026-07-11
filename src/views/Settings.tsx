@@ -126,6 +126,8 @@ export const Settings: React.FC<SettingsProps> = ({
   const [openingStripePortal, setOpeningStripePortal] = useState(false);
   const [stripePortalError, setStripePortalError] = useState('');
   const [shortcutCenterOpen, setShortcutCenterOpen] = useState(false);
+  const [shortcutCenterInitialTab, setShortcutCenterInitialTab] = useState<'actions' | 'iphone'>('actions');
+  const [focusWalletSetup, setFocusWalletSetup] = useState(false);
 
   const premiumExpiresAt = foyer?.premiumExpiresAt ? new Date(foyer.premiumExpiresAt) : null;
   const hasValidPremiumDate = Boolean(premiumExpiresAt && Number.isFinite(premiumExpiresAt.getTime()));
@@ -1611,9 +1613,34 @@ export const Settings: React.FC<SettingsProps> = ({
             </div>
           </div>
 
+          {isNativeApp && (
+            <button
+              type="button"
+              onClick={() => {
+                setShortcutCenterInitialTab('iphone');
+                setFocusWalletSetup(true);
+                setShortcutCenterOpen(true);
+              }}
+              className="flex w-full items-center gap-3 rounded-2xl border border-[#00D26A]/20 bg-[#00D26A]/7 p-3 text-left transition hover:bg-[#00D26A]/10 active:scale-[0.99]"
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#00D26A]/14 text-[#00D26A]">
+                <CreditCard className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <strong className="block text-xs text-white">Paiement Wallet vers Budget</strong>
+                <small className="mt-1 block text-[10px] leading-relaxed text-white/50">Installer l’automatisation et tester le formulaire prérempli.</small>
+              </span>
+              <ChevronRight className="h-5 w-5 shrink-0 text-[#00D26A]" />
+            </button>
+          )}
+
           <button
             type="button"
-            onClick={() => setShortcutCenterOpen(true)}
+            onClick={() => {
+              setShortcutCenterInitialTab('actions');
+              setFocusWalletSetup(false);
+              setShortcutCenterOpen(true);
+            }}
             className="flex w-full items-center justify-between gap-3 rounded-2xl bg-[#6C5CFF] px-4 py-3.5 text-left text-white shadow-[0_12px_28px_rgba(108,92,255,0.22)] transition hover:bg-[#7A6BFF] active:scale-[0.99]"
           >
             <span>
@@ -1628,6 +1655,8 @@ export const Settings: React.FC<SettingsProps> = ({
       <ShortcutCenter
         isOpen={shortcutCenterOpen}
         isNativeApp={isNativeApp}
+        initialTab={shortcutCenterInitialTab}
+        focusWalletSetup={focusWalletSetup}
         accounts={accounts}
         onClose={() => setShortcutCenterOpen(false)}
         onTestQuickAction={onTestQuickAction}
