@@ -565,7 +565,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                 {walletSetupSteps.map((step, index) => (
                   <li key={step} className="flex gap-3 text-[11px] font-medium leading-relaxed text-white/60">
                     <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#00D26A]/14 text-[9px] font-black text-[#00D26A]">{index + 1}</span>
-                    {isNativeApp ? <span>{step}</span> : <InstructionText text={step} />}
+                    <span>{step}</span>
                   </li>
                 ))}
               </ol>
@@ -606,7 +606,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                     {steps.map((step, index) => (
                       <li key={step} className="flex gap-3 text-[11px] font-medium leading-relaxed text-white/55">
                         <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/7 text-[9px] font-black text-white/70">{index + 1}</span>
-                        <InstructionText text={step} />
+                        <span>{step}</span>
                       </li>
                     ))}
                   </ol>
@@ -615,7 +615,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
             })}
 
             {!isNativeApp && (
-              <div className="flex gap-3 rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/8 p-4">
+              <div className="flex gap-3 rounded-[22px] border border-[#FFB020]/20 bg-[#FFB020]/8 p-4">
                 <CircleHelp className="mt-0.5 h-5 w-5 shrink-0 text-[#FFB020]" />
                 <p className="text-[11px] font-medium leading-relaxed text-white/55">Sur la version web installée, iOS peut ouvrir le navigateur par défaut au lieu de MyFamily+. Pour Siri, l’appui long et le bouton Action les plus fiables, utilisez l’application iPhone.</p>
               </div>

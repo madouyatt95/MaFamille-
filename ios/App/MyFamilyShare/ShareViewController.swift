@@ -23,6 +23,7 @@ final class ShareViewController: UIViewController {
     private let openButton = UIButton(type: .system)
     private let stateQueue = DispatchQueue(label: "fr.myfamilyplus.share-state")
     private var pendingDeepLink: URL?
+    private var pendingCustomDeepLink: URL?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -196,9 +197,6 @@ final class ShareViewController: UIViewController {
     }
 
     private func openApp(_ manifest: SharedPayloadManifest, persisted: Bool) {
-        var components = URLComponents()
-        components.scheme = "myfamilyplus"
-        components.host = "action"
         var queryItems = [
             URLQueryItem(name: "action", value: "share-intake"),
             URLQueryItem(name: "target", value: manifest.target),
@@ -211,18 +209,26 @@ final class ShareViewController: UIViewController {
                 URLQueryItem(name: "url", value: clipped(manifest.url, maxLength: 500))
             ]
         }
-        components.queryItems = queryItems
-        guard let deepLink = components.url else {
+
+        var universalComponents = URLComponents(string: "https://myfamilyplus.fr/action/share-intake")
+        universalComponents?.queryItems = queryItems
+
+        var customComponents = URLComponents()
+        customComponents.scheme = "myfamilyplus"
+        customComponents.host = "action"
+        customComponents.queryItems = queryItems
+
+        guard let universalLink = universalComponents?.url, let customLink = customComponents.url else {
             statusLabel.text = "Le contenu n’a pas pu être préparé."
             return
         }
 
-        pendingDeepLink = deepLink
+        pendingDeepLink = universalLink
+        pendingCustomDeepLink = customLink
         openButton.isHidden = false
         statusLabel.text = persisted
-            ? "Votre contenu est prêt dans MyFamily+."
-            : "MyFamily+ va recevoir ce contenu sans fichier joint."
-        attemptOpenApp(deepLink)
+            ? "Votre contenu est prêt. Touchez le bouton pour continuer dans MyFamily+."
+            : "Le contenu est prêt sans fichier joint. Touchez le bouton pour continuer."
     }
 
     @objc private func retryOpenApp() {
@@ -237,19 +243,26 @@ final class ShareViewController: UIViewController {
             DispatchQueue.main.async {
                 self.openButton.isEnabled = true
             }
-            if success {
-                // Do not complete the extension here: doing so can immediately
-                // return the user to the source application after MyFamily+ opens.
+            if success { return }
+
+            guard let customLink = self.pendingCustomDeepLink else {
+                DispatchQueue.main.async { self.showManualOpenMessage() }
                 return
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                let opened = self.openDeepLinkThroughResponderChain(deepLink)
-                self.statusLabel.text = opened
-                    ? "MyFamily+ s’ouvre…"
-                    : "Touchez « Ouvrir MyFamily+ ». Le contenu restera disponible si vous ouvrez l’application manuellement."
-                self.openButton.isHidden = opened
+            self.extensionContext?.open(customLink) { customSuccess in
+                DispatchQueue.main.async {
+                    if customSuccess { return }
+                    self.showManualOpenMessage()
+                }
             }
         }
+    }
+
+    private func showManualOpenMessage() {
+        statusLabel.text = "Le contenu est sauvegardé. Fermez cette fenêtre puis ouvrez MyFamily+ : il sera proposé automatiquement."
+        openButton.setTitle("Réessayer", for: .normal)
+        openButton.isHidden = false
+        openButton.isEnabled = true
     }
 
     private func clipped(_ value: String, maxLength: Int) -> String {
@@ -265,19 +278,6 @@ final class ShareViewController: UIViewController {
 
     private func mimeType(for typeIdentifier: String) -> String {
         UTType(typeIdentifier)?.preferredMIMEType ?? "application/octet-stream"
-    }
-
-    private func openDeepLinkThroughResponderChain(_ url: URL) -> Bool {
-        let selector = NSSelectorFromString("openURL:")
-        var responder: UIResponder? = self
-        while let currentResponder = responder {
-            if currentResponder.responds(to: selector) {
-                currentResponder.perform(selector, with: url)
-                return true
-            }
-            responder = currentResponder.next
-        }
-        return false
     }
 
     private func kindFor(url: URL) -> String {
