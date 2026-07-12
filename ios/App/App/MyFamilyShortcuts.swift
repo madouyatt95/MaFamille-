@@ -90,7 +90,7 @@ struct AddFamilyExpenseIntent: MyFamilyQuickActionIntent {
 @available(iOS 16.0, *)
 struct ImportWalletTransactionIntent: MyFamilyQuickActionIntent {
     static var title: LocalizedStringResource = "Transaction Wallet vers Budget"
-    static var description = IntentDescription("Ouvre le vrai formulaire Budget avec les informations du paiement Apple Pay préremplies.")
+    static var description = IntentDescription("Ouvre le formulaire Budget avec les informations du paiement par carte préremplies.")
 
     @Parameter(title: "Montant") var amount: Double?
     @Parameter(title: "Commerçant") var merchant: String?
