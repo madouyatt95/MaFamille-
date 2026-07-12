@@ -110,6 +110,17 @@ async function deleteUserGeneratedContent(userId: string) {
   }
 }
 
+async function deleteUserInvitations(userId: string) {
+  const { error } = await supabaseAdmin
+    .from("foyer_invitations")
+    .delete()
+    .eq("invited_by", userId);
+
+  if (error && error.code !== "42P01" && error.code !== "42703") {
+    throw error;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -137,48 +148,41 @@ serve(async (req) => {
     }
 
     const userId = userData.user.id;
-    const { data: memberships, error: membershipError } = await supabaseAdmin
-      .from("foyer_members")
-      .select("id, foyer_id, role")
-      .eq("user_id", userId);
-    if (membershipError) throw membershipError;
+    const { data: ownedFoyers, error: ownedFoyersError } = await supabaseAdmin
+      .from("foyers")
+      .select("id")
+      .eq("created_by", userId);
+    if (ownedFoyersError) throw ownedFoyersError;
 
     let transferredFoyers = 0;
     let deletedFoyers = 0;
 
-    for (const membership of memberships || []) {
-      const { data: foyer } = await supabaseAdmin
-        .from("foyers")
-        .select("id, created_by")
-        .eq("id", membership.foyer_id)
-        .maybeSingle();
-
-      if (foyer?.created_by !== userId) continue;
-
-      const { data: successor } = await supabaseAdmin
+    for (const foyer of ownedFoyers || []) {
+      const { data: successor, error: successorError } = await supabaseAdmin
         .from("foyer_members")
         .select("user_id")
-        .eq("foyer_id", membership.foyer_id)
+        .eq("foyer_id", foyer.id)
         .not("user_id", "is", null)
         .neq("user_id", userId)
         .in("role", ["admin", "parent", "Chef de famille", "Gestionnaire"])
         .limit(1)
         .maybeSingle();
+      if (successorError) throw successorError;
 
       if (successor?.user_id) {
         const { error: transferError } = await supabaseAdmin
           .from("foyers")
           .update({ created_by: successor.user_id })
-          .eq("id", membership.foyer_id)
+          .eq("id", foyer.id)
           .eq("created_by", userId);
         if (transferError) throw transferError;
         transferredFoyers += 1;
       } else {
-        await removeFoyerStorage(membership.foyer_id);
+        await removeFoyerStorage(foyer.id);
         const { error: deleteFoyerError } = await supabaseAdmin
           .from("foyers")
           .delete()
-          .eq("id", membership.foyer_id)
+          .eq("id", foyer.id)
           .eq("created_by", userId);
         if (deleteFoyerError) throw deleteFoyerError;
         deletedFoyers += 1;
@@ -187,12 +191,22 @@ serve(async (req) => {
 
     await removeOwnedStorageObjects(userId);
     await deleteUserGeneratedContent(userId);
+    await deleteUserInvitations(userId);
 
     const { error: memberDeleteError } = await supabaseAdmin
       .from("foyer_members")
       .delete()
       .eq("user_id", userId);
     if (memberDeleteError) throw memberDeleteError;
+
+    const { count: remainingOwnedFoyers, error: remainingFoyersError } = await supabaseAdmin
+      .from("foyers")
+      .select("id", { count: "exact", head: true })
+      .eq("created_by", userId);
+    if (remainingFoyersError) throw remainingFoyersError;
+    if (remainingOwnedFoyers) {
+      throw new Error("Des foyers liés à ce compte n'ont pas pu être transférés ou supprimés.");
+    }
 
     const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (authDeleteError) throw authDeleteError;
