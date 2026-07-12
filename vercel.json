@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/support",
+      "destination": "/support.html"
+    },
+    {
+      "source": "/support/",
+      "destination": "/support.html"
+    },
+    {
       "source": "/app",
       "destination": "/index.html"
     },

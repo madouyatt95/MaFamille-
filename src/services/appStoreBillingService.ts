@@ -24,6 +24,12 @@ type AppStoreTransaction = {
   message?: string;
 };
 
+type PendingAppStoreVerification = {
+  foyerId: string;
+  transaction: AppStoreTransaction;
+  queuedAt: string;
+};
+
 type AppStoreBillingPlugin = {
   getProducts(options: { productIds: string[] }): Promise<{ products: AppStoreProduct[] }>;
   purchase(options: { productId: string; appAccountToken: string }): Promise<AppStoreTransaction>;
@@ -37,8 +43,95 @@ const APP_STORE_PRODUCT_IDS: Record<PremiumPlan, string> = {
   yearly: import.meta.env.VITE_APP_STORE_PREMIUM_YEARLY_PRODUCT_ID || 'fr.myfamilyplus.app.premium.yearly'
 };
 
+const PENDING_VERIFICATION_KEY = 'mf_pending_app_store_verification_v1';
+
+class AppStoreVerificationError extends Error {
+  retryable: boolean;
+
+  constructor(message: string, retryable: boolean) {
+    super(message);
+    this.name = 'AppStoreVerificationError';
+    this.retryable = retryable;
+  }
+}
+
 function planFromProductId(productId?: string): PremiumPlan {
   return productId === APP_STORE_PRODUCT_IDS.monthly ? 'monthly' : 'yearly';
+}
+
+function readPendingVerification(): PendingAppStoreVerification | null {
+  try {
+    const raw = localStorage.getItem(PENDING_VERIFICATION_KEY);
+    return raw ? JSON.parse(raw) as PendingAppStoreVerification : null;
+  } catch {
+    return null;
+  }
+}
+
+function queuePendingVerification(foyerId: string, transaction: AppStoreTransaction): void {
+  try {
+    localStorage.setItem(PENDING_VERIFICATION_KEY, JSON.stringify({
+      foyerId,
+      transaction: {
+        ...transaction,
+        // The transaction id is sufficient for the server retry. Avoid persisting the signed payload.
+        signedTransactionInfo: undefined
+      },
+      queuedAt: new Date().toISOString()
+    } satisfies PendingAppStoreVerification));
+  } catch {
+    // The verified StoreKit transaction remains restorable even if local storage is unavailable.
+  }
+}
+
+function clearPendingVerification(foyerId: string, transactionId?: string): void {
+  const pending = readPendingVerification();
+  if (!pending || pending.foyerId !== foyerId) return;
+  if (transactionId && pending.transaction.transactionId !== transactionId) return;
+  localStorage.removeItem(PENDING_VERIFICATION_KEY);
+}
+
+function snapshotFromVerifiedTransaction(transaction: AppStoreTransaction): PremiumSubscriptionSnapshot {
+  if (transaction.status !== 'verified' || !transaction.transactionId || !transaction.productId) {
+    throw new Error("Apple n'a pas confirmé cette transaction.");
+  }
+
+  const suppliedExpiry = transaction.expiresAt ? new Date(transaction.expiresAt) : null;
+  const expiresAt = suppliedExpiry && Number.isFinite(suppliedExpiry.getTime())
+    ? suppliedExpiry.toISOString()
+    : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  return {
+    isPremium: new Date(expiresAt).getTime() > Date.now(),
+    source: 'appstore',
+    plan: planFromProductId(transaction.productId),
+    status: new Date(expiresAt).getTime() > Date.now() ? 'active' : 'expired',
+    expiresAt,
+    platform: 'ios',
+    appStoreOriginalTransactionId: transaction.originalTransactionId || transaction.transactionId
+  };
+}
+
+async function getFunctionError(error: unknown): Promise<AppStoreVerificationError> {
+  const fallback = "La synchronisation de l'achat avec votre foyer est momentanément indisponible.";
+  const candidate = error as { message?: string; context?: unknown } | null;
+  const response = candidate?.context instanceof Response ? candidate.context : null;
+
+  if (response) {
+    const status = response.status;
+    let message = fallback;
+    try {
+      const payload = await response.clone().json() as { message?: string };
+      message = payload.message || fallback;
+    } catch {
+      // Keep the user-facing fallback when the gateway response is not JSON.
+    }
+    return new AppStoreVerificationError(message, status >= 500 || status === 429);
+  }
+
+  const technicalMessage = candidate?.message || '';
+  const retryable = /fetch|network|edge function|relay|timeout|unavailable/i.test(technicalMessage);
+  return new AppStoreVerificationError(retryable ? fallback : (technicalMessage || fallback), retryable);
 }
 
 async function verifyWithSupabase(
@@ -82,7 +175,7 @@ async function verifyWithSupabase(
   });
 
   if (error) {
-    throw new Error(error.message || "Impossible de valider l'achat App Store.");
+    throw await getFunctionError(error);
   }
 
   if (!data?.subscription) {
@@ -90,6 +183,24 @@ async function verifyWithSupabase(
   }
 
   return data.subscription as PremiumSubscriptionSnapshot;
+}
+
+async function verifyOrQueue(
+  foyerId: string,
+  transaction: AppStoreTransaction
+): Promise<PremiumSubscriptionSnapshot> {
+  try {
+    const subscription = await verifyWithSupabase(foyerId, transaction);
+    clearPendingVerification(foyerId, transaction.transactionId);
+    return subscription;
+  } catch (error) {
+    if (!(error instanceof AppStoreVerificationError) || !error.retryable) throw error;
+
+    const subscription = snapshotFromVerifiedTransaction(transaction);
+    queuePendingVerification(foyerId, transaction);
+    console.warn('[App Store] StoreKit verified the purchase; cloud sync will retry later.');
+    return subscription;
+  }
 }
 
 export const appStoreBillingService = {
@@ -118,7 +229,7 @@ export const appStoreBillingService = {
     if (transaction.status === 'pending') {
       throw new Error(transaction.message || "L'achat est en attente de validation par Apple.");
     }
-    return verifyWithSupabase(foyerId, transaction);
+    return verifyOrQueue(foyerId, transaction);
   },
 
   async restore(foyerId: string): Promise<PremiumSubscriptionSnapshot> {
@@ -131,7 +242,22 @@ export const appStoreBillingService = {
     if (transaction.status === 'pending') {
       throw new Error(transaction.message || "La restauration est en attente de validation par Apple.");
     }
-    return verifyWithSupabase(foyerId, transaction);
+    return verifyOrQueue(foyerId, transaction);
+  },
+
+  async flushPendingVerification(foyerId: string): Promise<PremiumSubscriptionSnapshot | null> {
+    const pending = readPendingVerification();
+    if (!pending || pending.foyerId !== foyerId) return null;
+
+    try {
+      const subscription = await verifyWithSupabase(foyerId, pending.transaction);
+      clearPendingVerification(foyerId, pending.transaction.transactionId);
+      return subscription;
+    } catch (error) {
+      if (error instanceof AppStoreVerificationError && error.retryable) return null;
+      clearPendingVerification(foyerId, pending.transaction.transactionId);
+      throw error;
+    }
   },
 
   planFromProductId

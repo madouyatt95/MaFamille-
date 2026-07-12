@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Assistance officielle MyFamily+ : contact, réponses aux questions fréquentes et gestion du compte." />
+    <title>Assistance MyFamily+</title>
+    <style>
+      :root { color-scheme: light; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172033; background: #f6f8fc; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; background: #f6f8fc; }
+      a { color: inherit; }
+      .topbar { border-bottom: 1px solid #e4e8f0; background: #fff; }
+      .topbar-inner, main { width: min(920px, calc(100% - 32px)); margin: 0 auto; }
+      .topbar-inner { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+      .brand { font-size: 20px; font-weight: 900; color: #151b2b; text-decoration: none; }
+      .brand span { color: #6c5cff; }
+      .app-link { color: #5748df; font-size: 14px; font-weight: 800; text-decoration: none; }
+      main { padding: 54px 0 64px; }
+      .eyebrow { color: #6657e8; font-size: 12px; font-weight: 900; text-transform: uppercase; }
+      h1 { max-width: 700px; margin: 12px 0 12px; font-size: clamp(34px, 6vw, 56px); line-height: 1.04; }
+      .intro { max-width: 670px; margin: 0; color: #5f6879; font-size: 17px; line-height: 1.65; }
+      .contact { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; margin: 34px 0; padding: 24px; border: 1px solid #dadff0; border-radius: 8px; background: #fff; box-shadow: 0 14px 36px rgba(30, 44, 80, .07); }
+      .contact h2 { margin: 0 0 7px; font-size: 20px; }
+      .contact p { margin: 0; color: #6a7282; line-height: 1.55; }
+      .contact-button { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; padding: 0 20px; border-radius: 8px; background: #6556ed; color: #fff; font-weight: 900; text-decoration: none; white-space: nowrap; }
+      .details { color: #6a7282; font-size: 13px; line-height: 1.6; }
+      .faq { margin-top: 42px; }
+      .faq h2 { margin-bottom: 18px; font-size: 25px; }
+      details { margin-bottom: 10px; border: 1px solid #e0e4ed; border-radius: 8px; background: #fff; }
+      summary { cursor: pointer; padding: 18px 20px; font-weight: 850; }
+      details p { margin: 0; padding: 0 20px 20px; color: #60697a; line-height: 1.65; }
+      .links { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 40px; padding-top: 24px; border-top: 1px solid #dfe3ec; }
+      .links a { color: #5748df; font-size: 14px; font-weight: 800; }
+      footer { margin-top: 26px; color: #7a8290; font-size: 12px; }
+      @media (max-width: 640px) { main { padding-top: 36px; } .contact { grid-template-columns: 1fr; } .contact-button { width: 100%; } }
+    </style>
+  </head>
+  <body>
+    <nav class="topbar" aria-label="Navigation principale">
+      <div class="topbar-inner">
+        <a class="brand" href="/">MyFamily<span>+</span></a>
+        <a class="app-link" href="/app">Ouvrir l’application</a>
+      </div>
+    </nav>
+    <main>
+      <span class="eyebrow">Centre d’assistance</span>
+      <h1>Comment pouvons-nous vous aider&nbsp;?</h1>
+      <p class="intro">Une question sur votre foyer, votre abonnement ou une fonctionnalité&nbsp;? Contactez directement l’équipe MyFamily+.</p>
+
+      <section class="contact" aria-labelledby="contact-title">
+        <div>
+          <h2 id="contact-title">Écrire à l’assistance</h2>
+          <p>Décrivez votre question et indiquez le modèle de votre appareil. N’envoyez jamais votre mot de passe ni votre code PIN.</p>
+          <p class="details">Adresse&nbsp;: contact@myfamilyplus.fr</p>
+        </div>
+        <a class="contact-button" href="mailto:contact@myfamilyplus.fr?subject=Assistance%20MyFamily%2B">Contacter l’assistance</a>
+      </section>
+
+      <section class="faq" aria-labelledby="faq-title">
+        <h2 id="faq-title">Questions fréquentes</h2>
+        <details>
+          <summary>Comment rejoindre un foyer&nbsp;?</summary>
+          <p>Créez votre compte, puis utilisez le lien ou le code d’invitation transmis par le responsable du foyer. Celui-ci confirme ensuite votre arrivée.</p>
+        </details>
+        <details>
+          <summary>Comment restaurer mon abonnement Apple&nbsp;?</summary>
+          <p>Dans l’écran Premium, touchez «&nbsp;Restaurer mes achats&nbsp;» avec le même compte Apple que celui utilisé lors de la souscription.</p>
+        </details>
+        <details>
+          <summary>Comment supprimer définitivement mon compte&nbsp;?</summary>
+          <p>Dans MyFamily+, ouvrez Réglages, choisissez Compte, puis «&nbsp;Supprimer définitivement mon compte&nbsp;». Une confirmation explicite vous protège contre une suppression accidentelle.</p>
+        </details>
+        <details>
+          <summary>Que faire si une fonctionnalité ne répond plus&nbsp;?</summary>
+          <p>Fermez puis rouvrez l’application, vérifiez votre connexion et installez la dernière version disponible. Si le problème continue, contactez-nous avec une courte description.</p>
+        </details>
+      </section>
+
+      <div class="links" aria-label="Informations légales">
+        <a href="/legal/account-deletion.html">Suppression du compte</a>
+        <a href="/legal/privacy.html">Confidentialité</a>
+        <a href="/legal/terms.html">Conditions d’utilisation</a>
+      </div>
+      <footer>MyFamily+ · Assistance officielle · Yatta Digital</footer>
+    </main>
+  </body>
+</html>

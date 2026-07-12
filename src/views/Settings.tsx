@@ -77,6 +77,7 @@ const SETTINGS_REFERENCE_TIME = Date.now();
 const SETTINGS_SEARCH_ITEMS = [
   { tab: 'compte', target: 'settings-profile', title: 'Profil', description: 'Nom et photo de profil' },
   { tab: 'compte', target: 'settings-security', title: 'Mot de passe', description: 'Sécurité du compte' },
+  { tab: 'compte', target: 'settings-delete-account', title: 'Supprimer mon compte', description: 'Suppression définitive du compte et des données' },
   { tab: 'compte', target: 'settings-appearance', title: 'Apparence', description: 'Mode sombre, clair ou sépia' },
   { tab: 'compte', target: 'settings-accessibility', title: 'Accessibilité', description: 'Texte, contraste et animations' },
   { tab: 'compte', target: 'settings-currency', title: 'Devise', description: 'Euro, franc CFA ou dollar' },
@@ -808,6 +809,34 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
       </div>
 
+      {settingsTab === 'compte' && user && onDeleteAccount && (
+        <section id="settings-delete-account" className="scroll-mt-5 rounded-2xl border border-red-500/20 bg-red-500/[0.055] p-5 shadow-[0_14px_34px_rgba(127,29,29,0.06)]">
+          <div className="flex items-start gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-red-500/12 text-red-400">
+              <Trash2 className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-black text-white">Compte et données</h3>
+              <p className="mt-1 text-[11px] font-medium leading-relaxed text-white/50">
+                Vous pouvez supprimer définitivement votre compte MyFamily+ et les données personnelles associées.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteAccountConfirmation('');
+              setDeleteAccountError('');
+              setDeleteAccountOpen(true);
+            }}
+            className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/12 px-4 text-xs font-black text-red-300 transition hover:bg-red-500/18 active:scale-[0.98]"
+          >
+            <Trash2 className="h-4 w-4" />
+            Supprimer définitivement mon compte
+          </button>
+        </section>
+      )}
+
       {/* 0. Mon Profil */}
       {settingsTab === 'compte' && (myMemberProfile || activeMemberId) && (
         <form id="settings-profile" onSubmit={handleSaveProfile} className="glass-panel animate-fade-in scroll-mt-5 space-y-5 rounded-2xl border border-white/8 p-5">
@@ -956,33 +985,6 @@ export const Settings: React.FC<SettingsProps> = ({
               <span>Mettre à jour le mot de passe</span>
             </button>
           </form>
-        </details>
-      )}
-
-      {settingsTab === 'compte' && user && onDeleteAccount && (
-        <details className="group rounded-2xl border border-red-500/15 bg-red-500/[0.035] p-4">
-          <summary className="flex cursor-pointer list-none items-center gap-3">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-red-500/10 text-red-400"><Trash2 className="h-4 w-4" /></span>
-            <span className="min-w-0 flex-1">
-              <strong className="block text-xs text-white">Zone sensible</strong>
-              <small className="mt-0.5 block text-[9px] text-white/40">Suppression définitive du compte</small>
-            </span>
-            <ChevronRight className="h-4 w-4 text-white/30 transition group-open:rotate-90" />
-          </summary>
-          <div className="mt-4 border-t border-red-500/10 pt-4">
-            <p className="text-[11px] font-medium leading-relaxed text-white/50">Supprime définitivement votre accès, vos données personnelles et les contenus dont vous êtes l’unique propriétaire.</p>
-            <button
-              type="button"
-              onClick={() => {
-                setDeleteAccountConfirmation('');
-                setDeleteAccountError('');
-                setDeleteAccountOpen(true);
-              }}
-              className="mt-3 w-full rounded-xl border border-red-500/25 bg-red-500/10 py-3 text-xs font-black text-red-400 hover:bg-red-500/15"
-            >
-              Supprimer mon compte
-            </button>
-          </div>
         </details>
       )}
 

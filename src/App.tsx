@@ -2932,6 +2932,39 @@ function App() {
   useEffect(() => {
     localStorage.setItem('mf_is_premium', String(isPremium));
   }, [isPremium]);
+
+  useEffect(() => {
+    if (!foyer?.id || !appStoreBillingService.isAvailable()) return;
+
+    let cancelled = false;
+    const syncVerifiedAppStorePurchase = async () => {
+      try {
+        const subscription = await appStoreBillingService.flushPendingVerification(foyer.id);
+        if (!subscription || cancelled) return;
+        setIsPremium(subscription.isPremium);
+        setFoyer(previous => previous ? {
+          ...previous,
+          isPremium: subscription.isPremium,
+          maxMembers: subscription.isPremium ? 999 : 3,
+          premiumSource: subscription.source,
+          premiumPlan: subscription.plan,
+          premiumStatus: subscription.status,
+          premiumExpiresAt: subscription.expiresAt,
+          appStoreOriginalTransactionId: subscription.appStoreOriginalTransactionId
+            || previous.appStoreOriginalTransactionId
+        } : null);
+      } catch (error) {
+        console.warn('[App Store] Unable to complete the pending cloud sync:', error);
+      }
+    };
+
+    void syncVerifiedAppStorePurchase();
+    window.addEventListener('online', syncVerifiedAppStorePurchase);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('online', syncVerifiedAppStorePurchase);
+    };
+  }, [foyer?.id]);
   // Chargement et application du thème visuel au démarrage
   useEffect(() => {
     const savedTheme = localStorage.getItem('app_appearance_mode') || 'dark';
