@@ -150,7 +150,6 @@ const NFC_STEPS = [
   'Approchez l’iPhone du tag pour tester l’ouverture.'
 ] as const;
 
-const WALLET_LINK_TEMPLATE = 'https://myfamilyplus.fr/quick-expense?amount=[Montant]&merchant=[Commerçant]&date=[Date]&currency=[Devise]';
 const NFC_PROFILES_KEY = 'mf_nfc_profiles_v1';
 
 interface NfcProfile {
@@ -570,22 +569,6 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                   </li>
                 ))}
               </ol>
-
-              {!isNativeApp && (
-                <div className="mt-3 rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 p-3">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-[#B7AFFF]">Modèle prêt à copier</span>
-                  <code className="mt-2 block break-all whitespace-normal rounded-xl border border-white/8 bg-black/15 px-3 py-2.5 text-[9px] font-semibold leading-relaxed text-white/70">{WALLET_LINK_TEMPLATE}</code>
-                  <p className="mt-2 text-[9px] font-medium leading-relaxed text-white/45">Dans Raccourcis, remplacez chaque élément entre crochets par la variable correspondante proposée par l’automatisation Transaction.</p>
-                  <button
-                    type="button"
-                    onClick={() => void copyValue(WALLET_LINK_TEMPLATE, 'wallet-template')}
-                    className="mt-3 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#6C5CFF] px-3 text-[10px] font-black text-white"
-                  >
-                    {copiedValue === 'wallet-template' ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    {copiedValue === 'wallet-template' ? 'Modèle copié' : 'Copier le modèle complet'}
-                  </button>
-                </div>
-              )}
 
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
