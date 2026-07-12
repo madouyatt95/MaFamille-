@@ -14,7 +14,8 @@ import {
   AlertTriangle,
   Clock,
   FileSpreadsheet,
-  RefreshCw
+  RefreshCw,
+  MoreHorizontal
 } from 'lucide-react';
 import type { 
   Transaction, 
@@ -30,6 +31,16 @@ import { getSupabaseClient, serializeCategoryIcon, serializeTransactionComment, 
 import { DEFAULT_CATEGORIES } from '../data/budgetCategories';
 import { compressImageToBlob, isDataUrl, isRemoteUrl, uploadBlobToStorage } from '../utils/imageCompressor';
 import { MerchantLogo } from '../components/MerchantLogo';
+import { BudgetPilotage } from '../components/BudgetPilotage';
+import {
+  accountDeltasForMutation,
+  applyRollover,
+  buildUnifiedForecast,
+  budgetPeriodLabel,
+  computeBudgetSummary,
+  type AccountDelta,
+  type BudgetPeriod
+} from '../utils/budgetEngine';
 import {
   cleanMerchantName,
   findMerchantBrand,
@@ -93,7 +104,7 @@ interface BudgetProps {
   onTriggerPaywall?: () => void;
 }
 
-type FinanceTab = 'dashboard' | 'transactions' | 'revenus' | 'depenses' | 'categories' | 'goals' | 'accounts' | 'abonnements' | 'budgets_modules' | 'imports' | 'exports' | 'reports';
+type FinanceTab = 'dashboard' | 'transactions' | 'revenus' | 'depenses' | 'pilotage' | 'categories' | 'goals' | 'accounts' | 'abonnements' | 'budgets_modules' | 'imports' | 'exports' | 'reports';
 
 export { DEFAULT_CATEGORIES } from '../data/budgetCategories';
 
@@ -116,6 +127,8 @@ export const Budget: React.FC<BudgetProps> = ({
   setAccounts,
   abonnements,
   setAbonnements,
+  debts,
+  setDebts,
   activeSubView,
   onClearActiveSubView,
   moduleBudgets,
@@ -124,6 +137,7 @@ export const Budget: React.FC<BudgetProps> = ({
   onTriggerPaywall
 }) => {
   const [activeTab, setActiveTab] = useState<FinanceTab>('dashboard');
+  const [showMoreFinanceTools, setShowMoreFinanceTools] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -165,7 +179,7 @@ export const Budget: React.FC<BudgetProps> = ({
   };
   
   // Period filter states
-  type PeriodType = 'today' | 'yesterday' | 'week' | 'month' | 'quarter' | 'year' | 'all' | 'custom';
+  type PeriodType = BudgetPeriod;
   const [periodFilter, setPeriodFilter] = useState<PeriodType>('month');
   const [customStartDate, setCustomStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
   const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -214,6 +228,12 @@ export const Budget: React.FC<BudgetProps> = ({
   const [selectedModuleForLimit, setSelectedModuleForLimit] = useState<string | null>(null);
   const [moduleLimitInput, setModuleLimitInput] = useState('');
   const [moduleLimitRecurrence, setModuleLimitRecurrence] = useState('monthly');
+  const [moduleRolloverMode, setModuleRolloverMode] = useState<'none' | 'full' | 'partial'>('none');
+  const [moduleRolloverPercentage, setModuleRolloverPercentage] = useState('50');
+  const [moduleRolloverSettings, setModuleRolloverSettings] = useState<Record<string, { mode: 'none' | 'full' | 'partial'; percentage: number }>>(() => {
+    try { return JSON.parse(localStorage.getItem(`mf_budget_rollover_${foyerId}`) || '{}'); }
+    catch { return {}; }
+  });
 
   // Interactive chart hover/selection states
   const [selectedDonutSegment, setSelectedDonutSegment] = useState<number | null>(null);
@@ -472,6 +492,29 @@ export const Budget: React.FC<BudgetProps> = ({
 
   const isAuthorized = myMemberProfile?.role === 'admin' || myMemberProfile?.role === 'parent';
 
+  const applyAccountDeltas = async (deltas: AccountDelta[], syncCloud = true) => {
+    if (deltas.length === 0) return;
+    const balances = new Map(accounts.map(account => [account.id, account.balance]));
+    setAccounts(current => current.map(account => {
+      const delta = deltas.find(item => item.accountId === account.id)?.delta || 0;
+      return delta ? { ...account, balance: Math.round((account.balance + delta) * 100) / 100 } : account;
+    }));
+
+    const client = getSupabaseClient();
+    if (!client || !syncCloud) return;
+    for (const item of deltas) {
+      const { error } = await client.rpc('adjust_budget_account_balance', {
+        p_account_id: item.accountId,
+        p_delta: item.delta
+      });
+      if (error) {
+        const fallbackBalance = Math.round(((balances.get(item.accountId) || 0) + item.delta) * 100) / 100;
+        const { error: fallbackError } = await client.from('accounts').update({ balance: fallbackBalance }).eq('id', item.accountId);
+        if (fallbackError) throw fallbackError;
+      }
+    }
+  };
+
   // Categories resolution
   const allCategories = useMemo(() => {
     const categoryToModuleMap: Record<string, string> = {
@@ -722,35 +765,12 @@ export const Budget: React.FC<BudgetProps> = ({
   }, [trendData]);
 
   const stats = useMemo(() => {
-    let income = 0;
-    let expense = 0;
-
-    activeTransactions.forEach(t => {
-      if (t.type === 'income') {
-        income += t.amount;
-      } else if (t.type === 'expense') {
-        expense += t.amount;
-      }
-    });
-
-    const accountsTotal = accounts.reduce((acc, a) => acc + a.balance, 0);
     const savingsTotal = savingGoals.reduce((acc, g) => acc + g.currentAmount, 0);
+    const summary = computeBudgetSummary(activeTransactions, accounts, savingsTotal);
 
-    // Sum abonnements and monthly equivalent of recurring transactions
-    const recurringTxCost = transactions
-      .filter(t => t.recurrence && t.recurrence !== 'none')
-      .reduce((acc, t) => {
-        if (t.type === 'expense') {
-          if (t.recurrence === 'daily') return acc + t.amount * 30;
-          if (t.recurrence === 'weekly') return acc + t.amount * 4.33;
-          if (t.recurrence === 'monthly') return acc + t.amount;
-          if (t.recurrence === 'yearly') return acc + t.amount / 12;
-        }
-        return acc;
-      }, 0);
-    const upcomingAboCost = abonnements
-      .filter(a => !suspendedAboIds.includes(a.id))
-      .reduce((acc, a) => acc + a.amount, 0) + recurringTxCost;
+    const upcomingAboCost = buildUnifiedForecast(abonnements, transactions, suspendedAboIds, 30)
+      .filter(entry => entry.type === 'expense')
+      .reduce((sum, entry) => sum + entry.amount, 0);
 
     // Alert calculation based on module budgets
     const budgetAlerts: string[] = [];
@@ -787,11 +807,12 @@ export const Budget: React.FC<BudgetProps> = ({
     });
 
     return {
-      soldeFamilial: accountsTotal,
-      revenusMois: income,
-      depensesMois: expense,
-      budgetRestant: accountsTotal - expense,
-      epargneTotale: savingsTotal,
+      soldeFamilial: summary.accountBalance,
+      revenusMois: summary.income,
+      depensesMois: summary.expense,
+      budgetRestant: summary.availableBalance,
+      variationPeriode: summary.netCashflow,
+      epargneTotale: summary.savingsTotal,
       depensesAVenir: upcomingAboCost,
       alerts: budgetAlerts
     };
@@ -842,8 +863,10 @@ export const Budget: React.FC<BudgetProps> = ({
       }
     });
 
+    const subscriptionKeys = new Set(abonnements.map(item => `${normalizeMerchantKey(item.name)}|${Number(item.amount).toFixed(2)}`));
     transactions.forEach(t => {
       if (t.recurrence && t.recurrence !== 'none') {
+        if (t.type === 'expense' && subscriptionKeys.has(`${normalizeMerchantKey(t.title)}|${Number(t.amount).toFixed(2)}`)) return;
         let tDate = t.nextOccurrence || t.date || todayStr;
         const count = t.recurrence === 'daily' ? 90 : t.recurrence === 'weekly' ? 13 : t.recurrence === 'monthly' ? 3 : t.recurrence === 'yearly' ? 3 : 3;
         
@@ -1089,8 +1112,21 @@ export const Budget: React.FC<BudgetProps> = ({
       newTxData.updated_at = d.toISOString();
 
       const client = getSupabaseClient();
+      let accountBalanceHandledByServer = false;
       if (client && foyerId) {
-        await client.from('transactions').update({
+        const serializedComment = serializeTransactionComment(newTxData.comment, {
+            moduleSource: newTxData.moduleSource,
+            entryTime: editingTx.entryTime,
+            entryDate: editingTx.entryDate,
+            travelId: editingTx.travelId || editingTx.travel_id,
+            recurrenceInterval: editingTx.recurrenceInterval,
+            startDate: editingTx.startDate,
+            endDate: editingTx.endDate,
+            nextOccurrence: editingTx.nextOccurrence
+          });
+        const { error: atomicError } = await client.rpc('upsert_budget_transaction', { p_transaction: {
+          id: editingTx.id,
+          foyer_id: foyerId,
           amount: newTxData.amount,
           type: newTxData.type,
           category: newTxData.category,
@@ -1100,23 +1136,28 @@ export const Budget: React.FC<BudgetProps> = ({
           member_name: newTxData.memberName,
           date: newTxData.date,
           title: newTxData.title,
-          comment: serializeTransactionComment(newTxData.comment, {
-            moduleSource: newTxData.moduleSource,
-            entryTime: editingTx.entryTime,
-            entryDate: editingTx.entryDate,
-            travelId: editingTx.travelId || editingTx.travel_id,
-            recurrenceInterval: editingTx.recurrenceInterval,
-            startDate: editingTx.startDate,
-            endDate: editingTx.endDate,
-            nextOccurrence: editingTx.nextOccurrence
-          }),
+          comment: serializedComment,
           recurrence: newTxData.recurrence,
+          subscription_id: editingTx.subscriptionId || null
+        } });
+        accountBalanceHandledByServer = !atomicError;
+        const updatePayload = accountBalanceHandledByServer ? {
           receipt_url: newTxData.receiptUrl || null,
           receipt_base64: null,
           modification_history: JSON.stringify(newTxData.modificationHistory)
-        }).eq('id', editingTx.id);
+        } : {
+          amount: newTxData.amount, type: newTxData.type, category: newTxData.category,
+          sub_category: newTxData.subCategory, account_id: newTxData.accountId,
+          member_id: newTxData.memberId, member_name: newTxData.memberName,
+          date: newTxData.date, title: newTxData.title, comment: serializedComment,
+          recurrence: newTxData.recurrence, receipt_url: newTxData.receiptUrl || null,
+          receipt_base64: null, modification_history: JSON.stringify(newTxData.modificationHistory)
+        };
+        const { error } = await client.from('transactions').update(updatePayload).eq('id', editingTx.id);
+        if (error) throw error;
       }
 
+      await applyAccountDeltas(accountDeltasForMutation(editingTx, newTxData), !accountBalanceHandledByServer);
       setTransactions(prev => prev.map(t => t.id === editingTx.id ? { ...t, ...newTxData } : t));
     } else {
       newTxData.id = `tx-${Date.now()}`;
@@ -1131,7 +1172,7 @@ export const Budget: React.FC<BudgetProps> = ({
       newTxData.entryDate = newTxData.date;
 
       const client = getSupabaseClient();
-      if (client && foyerId) {
+      if (client && foyerId && !onAddTransaction) {
         await client.from('transactions').insert({
           id: newTxData.id,
           foyer_id: foyerId,
@@ -1182,10 +1223,19 @@ export const Budget: React.FC<BudgetProps> = ({
   const handleDeleteTx = async (id: string) => {
     if (!window.confirm('Supprimer cette transaction ?')) return;
 
+    const transaction = transactions.find(item => item.id === id);
+
     const client = getSupabaseClient();
+    let accountBalanceHandledByServer = false;
     if (client) {
-      await client.from('transactions').delete().eq('id', id);
+      const { error: atomicError } = await client.rpc('delete_budget_transaction', { p_transaction_id: id });
+      accountBalanceHandledByServer = !atomicError;
+      if (atomicError) {
+        const { error } = await client.from('transactions').delete().eq('id', id);
+        if (error) throw error;
+      }
     }
+    if (transaction) await applyAccountDeltas(accountDeltasForMutation(transaction, null), !accountBalanceHandledByServer);
     setTransactions(prev => prev.filter(t => t.id !== id));
   };
 
@@ -1199,32 +1249,11 @@ export const Budget: React.FC<BudgetProps> = ({
       entryTime: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
       entryDate: new Date().toISOString().split('T')[0]
     };
-    const client = getSupabaseClient();
-    if (client && foyerId) {
-      await client.from('transactions').insert({
-        id: dup.id,
-        foyer_id: foyerId,
-        amount: dup.amount,
-        type: dup.type,
-        category: dup.category,
-        sub_category: dup.subCategory,
-        account_id: dup.accountId,
-        member_id: dup.memberId,
-        member_name: dup.memberName,
-        date: dup.date,
-        title: dup.title,
-        comment: serializeTransactionComment(dup.comment, {
-          moduleSource: dup.moduleSource,
-          entryTime: dup.entryTime,
-          entryDate: dup.entryDate
-        }),
-        recurrence: dup.recurrence,
-        receipt_url: dup.receiptUrl || (isRemoteUrl(dup.receiptBase64) ? dup.receiptBase64 : null),
-        receipt_base64: null,
-        modification_history: JSON.stringify([{ author: myMemberProfile?.displayName || 'Système', date: new Date().toISOString(), action: 'Duplication' }])
-      });
+    if (onAddTransaction) await onAddTransaction(dup);
+    else {
+      await applyAccountDeltas(accountDeltasForMutation(null, dup));
+      setTransactions(prev => [dup, ...prev]);
     }
-    setTransactions(prev => [dup, ...prev]);
   };
 
   const handleArchiveTx = async (tx: Transaction) => {
@@ -1234,6 +1263,31 @@ export const Budget: React.FC<BudgetProps> = ({
       await client.from('transactions').update({ is_archived: updatedArchivedStatus }).eq('id', tx.id);
     }
     setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, isArchived: updatedArchivedStatus } : t));
+  };
+
+  const handleReconcileAccount = async (account: Account, actualBalance: number) => {
+    const delta = Math.round((actualBalance - account.balance) * 100) / 100;
+    if (Math.abs(delta) < 0.005) return;
+    const adjustment: Transaction = {
+      id: `tx-reconcile-${Date.now()}`,
+      title: `Ajustement de solde — ${account.name}`,
+      amount: Math.abs(delta),
+      type: delta > 0 ? 'income' : 'expense',
+      category: 'Autres',
+      subCategory: 'Rapprochement',
+      accountId: account.id,
+      memberId: activeMemberId,
+      memberName: myMemberProfile?.displayName || 'Famille',
+      date: new Date().toISOString().slice(0, 10),
+      moduleSource: 'budget',
+      comment: `Rapprochement avec le solde réel de ${actualBalance.toFixed(2)} ${_currencySymbol}.`,
+      modificationHistory: [{ author: myMemberProfile?.displayName || 'Système', date: new Date().toISOString(), action: 'Rapprochement de compte' }]
+    };
+    if (onAddTransaction) await onAddTransaction(adjustment);
+    else {
+      await applyAccountDeltas(accountDeltasForMutation(null, adjustment));
+      setTransactions(current => [adjustment as Transaction, ...current]);
+    }
   };
 
   // Categories logic
@@ -1313,6 +1367,9 @@ export const Budget: React.FC<BudgetProps> = ({
     const curr = moduleBudgets[moduleName];
     setModuleLimitInput(curr ? curr.budget.toString() : '');
     setModuleLimitRecurrence(curr ? curr.recurrence : 'monthly');
+    const rollover = moduleRolloverSettings[moduleName] || { mode: 'none', percentage: 50 };
+    setModuleRolloverMode(rollover.mode);
+    setModuleRolloverPercentage(String(rollover.percentage));
   };
 
   const handleSaveModuleLimit = () => {
@@ -1323,6 +1380,15 @@ export const Budget: React.FC<BudgetProps> = ({
       [selectedModuleForLimit]: { budget: limit, recurrence: moduleLimitRecurrence }
     };
     saveModuleBudgets(updated);
+    const rolloverSettings = {
+      ...moduleRolloverSettings,
+      [selectedModuleForLimit]: {
+        mode: moduleRolloverMode,
+        percentage: Math.min(100, Math.max(0, Number(moduleRolloverPercentage) || 0))
+      }
+    };
+    setModuleRolloverSettings(rolloverSettings);
+    localStorage.setItem(`mf_budget_rollover_${foyerId}`, JSON.stringify(rolloverSettings));
     setSelectedModuleForLimit(null);
   };
 
@@ -1352,6 +1418,18 @@ export const Budget: React.FC<BudgetProps> = ({
         }
       });
 
+    return map;
+  }, [transactions]);
+
+  const previousMonthModuleExpenses = useMemo(() => {
+    const map: Record<string, number> = {};
+    const previousMonth = new Date();
+    previousMonth.setMonth(previousMonth.getMonth() - 1);
+    const monthKey = `${previousMonth.getFullYear()}-${String(previousMonth.getMonth() + 1).padStart(2, '0')}`;
+    transactions.filter(transaction => !transaction.isArchived && transaction.type === 'expense' && transaction.date.startsWith(monthKey)).forEach(transaction => {
+      const moduleId = getModuleIdFromTransaction(transaction);
+      if (moduleId) map[moduleId] = (map[moduleId] || 0) + transaction.amount;
+    });
     return map;
   }, [transactions]);
 
@@ -1447,15 +1525,15 @@ export const Budget: React.FC<BudgetProps> = ({
         </div>
 
         <div className="glass-panel border border-white/5 p-4 rounded-3xl space-y-1">
-          <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Revenus du mois</span>
+          <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Revenus {budgetPeriodLabel(periodFilter)}</span>
           <span className="text-lg font-black text-emerald-400 block leading-tight">+{formatMoney(stats.revenusMois)}</span>
           <span className="text-[9px] text-white/30 block">Total crédits enregistrés</span>
         </div>
 
         <div className="glass-panel border border-white/5 p-4 rounded-3xl space-y-1">
-          <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Dépenses du mois</span>
+          <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Dépenses {budgetPeriodLabel(periodFilter)}</span>
           <span className="text-lg font-black text-rose-400 block leading-tight">-{formatMoney(stats.depensesMois)}</span>
-          <span className="text-[9px] text-white/30 block">Reste à vivre : {formatMoney(stats.budgetRestant)}</span>
+          <span className={`text-[9px] block ${stats.variationPeriode >= 0 ? 'text-emerald-400/70' : 'text-rose-400/70'}`}>Variation : {stats.variationPeriode >= 0 ? '+' : ''}{formatMoney(stats.variationPeriode)}</span>
         </div>
 
         <div className="glass-panel border border-white/5 p-4 rounded-3xl space-y-1">
@@ -1570,21 +1648,13 @@ export const Budget: React.FC<BudgetProps> = ({
       )}
 
       {/* 2. Sub-tab Navigation Switcher */}
-      <div className="border-b border-white/5 overflow-x-auto scrollbar-none">
-        <div className="flex gap-2 pb-2">
+      <div className="space-y-2 border-b border-white/5 pb-3">
+        <div className="flex gap-2 overflow-x-auto scrollbar-none">
           {[
             { id: 'dashboard', label: 'Vue d\'ensemble' },
             { id: 'transactions', label: 'Opérations' },
-            { id: 'revenus', label: 'Revenus' },
-            { id: 'depenses', label: 'Dépenses' },
-            { id: 'budgets_modules', label: 'Budgets par module' },
-            { id: 'categories', label: 'Catégories' },
-            { id: 'goals', label: 'Épargne' },
             { id: 'accounts', label: 'Comptes' },
-            { id: 'abonnements', label: 'Abonnements' },
-            { id: 'reports', label: 'Analyses & Rapports' },
-            { id: 'imports', label: 'Importation' },
-            { id: 'exports', label: 'Exports' }
+            { id: 'pilotage', label: 'Prévisions et contrôle' }
           ].map(tab => (
             <button
               key={tab.id}
@@ -1605,7 +1675,26 @@ export const Budget: React.FC<BudgetProps> = ({
               {tab.label}
             </button>
           ))}
+          <button type="button" onClick={() => setShowMoreFinanceTools(current => !current)} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-bold transition ${showMoreFinanceTools ? 'bg-white/10 text-white' : 'text-white/45 hover:bg-white/5 hover:text-white/70'}`}>
+            <MoreHorizontal className="h-4 w-4" />Plus
+          </button>
         </div>
+        {showMoreFinanceTools && (
+          <div className="flex flex-wrap gap-1.5 rounded-2xl border border-white/7 bg-white/3 p-2">
+            {[
+              { id: 'revenus', label: 'Revenus' }, { id: 'depenses', label: 'Dépenses' },
+              { id: 'budgets_modules', label: 'Budgets' }, { id: 'categories', label: 'Catégories' },
+              { id: 'goals', label: 'Épargne' }, { id: 'abonnements', label: 'Abonnements' },
+              { id: 'reports', label: 'Rapports' }, { id: 'imports', label: 'Importer' }, { id: 'exports', label: 'Exporter' }
+            ].map(tab => (
+              <button key={tab.id} type="button" onClick={() => {
+                if (tab.id === 'exports' && !isPremium) { onTriggerPaywall?.(); return; }
+                setActiveTab(tab.id as FinanceTab);
+                onClearActiveSubView?.();
+              }} className={`rounded-xl px-3 py-2 text-[10px] font-black ${activeTab === tab.id ? 'bg-[#6C5CFF] text-white' : 'text-white/45 hover:bg-white/5 hover:text-white'}`}>{tab.label}</button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 3. Render Sub-tabs content */}
@@ -1853,6 +1942,26 @@ export const Budget: React.FC<BudgetProps> = ({
         )}
 
         {/* --- TABS: BUDGETS PAR MODULE (Vue globale) --- */}
+        {activeTab === 'pilotage' && (
+          <BudgetPilotage
+            accounts={accounts}
+            transactions={transactions}
+            abonnements={abonnements}
+            suspendedAbonnementIds={suspendedAboIds}
+            debts={debts}
+            setDebts={setDebts}
+            members={members}
+            foyerId={foyerId}
+            isAuthorized={isAuthorized}
+            formatMoney={formatMoney}
+            onReconcileAccount={handleReconcileAccount}
+            onOpenTransaction={(transactionId) => {
+              const transaction = transactions.find(item => item.id === transactionId);
+              if (transaction) setSelectedTxDetail(transaction);
+            }}
+          />
+        )}
+
         {activeTab === 'budgets_modules' && (
           <div className="space-y-6">
             <div className="glass-panel border border-white/5 p-5 rounded-3xl space-y-2">
@@ -1876,9 +1985,12 @@ export const Budget: React.FC<BudgetProps> = ({
                 { id: 'taches', label: '🧹 Tâches Ménagères', icon: '🧹', cat: 'Argent de poche' }
               ].map(mod => {
                 const limitObj = moduleBudgets[mod.id] || { budget: 0, recurrence: 'monthly' };
+                const rollover = moduleRolloverSettings[mod.id] || { mode: 'none' as const, percentage: 50 };
+                const carriedAmount = applyRollover(limitObj.budget, previousMonthModuleExpenses[mod.id] || 0, rollover.mode, rollover.percentage);
+                const effectiveLimit = limitObj.budget + carriedAmount;
                 const dépensé = moduleDépenses[mod.id] || 0;
-                const restant = Math.max(0, limitObj.budget - dépensé);
-                const pct = limitObj.budget > 0 ? Math.min(100, Math.round((dépensé / limitObj.budget) * 100)) : 0;
+                const restant = Math.max(0, effectiveLimit - dépensé);
+                const pct = effectiveLimit > 0 ? Math.min(100, Math.round((dépensé / effectiveLimit) * 100)) : 0;
                 const recent = activeTransactions
                   .filter(t => t.moduleSource === mod.id && t.type === 'expense')
                   .slice(0, 2);
@@ -1896,6 +2008,7 @@ export const Budget: React.FC<BudgetProps> = ({
                       <div className="text-right">
                         <span className="text-sm font-black text-white block">{formatMoney(restant)} <span className="text-[9px] text-white/40 font-normal">restants</span></span>
                         <span className="text-[10px] text-white/50 block">Limite : {limitObj.budget > 0 ? `${formatMoney(limitObj.budget)} (${limitObj.recurrence === 'monthly' ? 'mensuel' : 'projet'})` : 'Aucune limite'}</span>
+                        {carriedAmount > 0 && <span className="text-[9px] font-bold text-emerald-400">+ {formatMoney(carriedAmount)} reportés</span>}
                       </div>
                     </div>
 
@@ -2433,20 +2546,27 @@ export const Budget: React.FC<BudgetProps> = ({
                           Modifier
                         </button>
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             if (window.confirm("Voulez-vous vraiment supprimer ce compte ? Cette action n'effacera pas les transactions associées mais dissociera le compte.")) {
                               const client = getSupabaseClient();
-                              if (client && foyerId) {
-                                client.from('accounts').delete().eq('id', selectedHistoryAccount.id).then(() => {
-                                  const metadataStr = localStorage.getItem('mf_accounts_metadata');
-                                  if (metadataStr) {
-                                    const metadata = JSON.parse(metadataStr);
-                                    delete metadata[selectedHistoryAccount.id];
-                                    localStorage.setItem('mf_accounts_metadata', JSON.stringify(metadata));
-                                  }
-                                  setAccounts(prev => prev.filter(a => a.id !== selectedHistoryAccount.id));
-                                  setSelectedHistoryAccount(null);
-                                });
+                              try {
+                                if (client && foyerId) {
+                                  const { error: unlinkError } = await client.from('transactions').update({ account_id: null }).eq('foyer_id', foyerId).eq('account_id', selectedHistoryAccount.id);
+                                  if (unlinkError) throw unlinkError;
+                                  const { error: deleteError } = await client.from('accounts').delete().eq('id', selectedHistoryAccount.id);
+                                  if (deleteError) throw deleteError;
+                                }
+                                const metadataStr = localStorage.getItem('mf_accounts_metadata');
+                                if (metadataStr) {
+                                  const metadata = JSON.parse(metadataStr);
+                                  delete metadata[selectedHistoryAccount.id];
+                                  localStorage.setItem('mf_accounts_metadata', JSON.stringify(metadata));
+                                }
+                                setAccounts(prev => prev.filter(a => a.id !== selectedHistoryAccount.id));
+                                setTransactions(prev => prev.map(transaction => transaction.accountId === selectedHistoryAccount.id ? { ...transaction, accountId: undefined } : transaction));
+                                setSelectedHistoryAccount(null);
+                              } catch (error) {
+                                console.error('Suppression du compte impossible :', error);
                               }
                             }
                           }}
@@ -3211,8 +3331,8 @@ export const Budget: React.FC<BudgetProps> = ({
                     <option value="expense">Dépense</option>
                     <option value="income">Revenu</option>
                     <option value="savings">Épargne</option>
-                    <option value="transfer">Virement interne</option>
                   </select>
+                  <small className="mt-1 block text-[9px] text-white/35">Utilisez l’action « Virement » dans Comptes pour déplacer de l’argent entre deux comptes.</small>
                 </div>
                 <div>
                   <label className="block text-white/50 mb-1">Catégorie *</label>
@@ -3335,6 +3455,15 @@ export const Budget: React.FC<BudgetProps> = ({
                   <option value="custom">Par projet / événement</option>
                 </select>
               </div>
+              {moduleLimitRecurrence === 'monthly' && (
+                <div className="rounded-2xl border border-white/7 bg-white/3 p-3 space-y-3">
+                  <div><strong className="text-[10px] text-white">Report du montant non dépensé</strong><p className="mt-1 text-[9px] text-white/40">Le calcul reste local et s’applique automatiquement au mois suivant.</p></div>
+                  <select value={moduleRolloverMode} onChange={e => setModuleRolloverMode(e.target.value as 'none' | 'full' | 'partial')} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white">
+                    <option value="none">Ne pas reporter</option><option value="full">Tout reporter</option><option value="partial">Reporter une partie</option>
+                  </select>
+                  {moduleRolloverMode === 'partial' && <label className="block text-[9px] text-white/45">Pourcentage reporté<input type="number" min="0" max="100" value={moduleRolloverPercentage} onChange={e => setModuleRolloverPercentage(e.target.value)} className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white" /></label>}
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <button onClick={() => setSelectedModuleForLimit(null)} className="flex-1 py-2 bg-white/5 border border-white/10 text-white rounded-xl font-bold">Annuler</button>
@@ -3762,55 +3891,79 @@ export const Budget: React.FC<BudgetProps> = ({
                 return;
               }
 
-              // Adjust balances locally and on database
+              // Apply the transfer as one server-side financial operation when available.
               const client = getSupabaseClient();
+              const srcAcc = accounts.find(a => a.id === transferForm.sourceAccountId)!;
+              const tarAcc = accounts.find(a => a.id === transferForm.targetAccountId)!;
+              const now = new Date();
+              const transferId = Date.now();
+              const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+              const dateStr = now.toISOString().split('T')[0];
+              const sourceTransaction = {
+                id: `tx-tf-src-${transferId}`,
+                amount: amt,
+                type: 'expense' as const,
+                category: 'Autres',
+                subCategory: 'Virement',
+                date: dateStr,
+                title: `Virement sortant : ${transferForm.title || tarAcc.name}`,
+                accountId: srcAcc.id,
+                memberName: myMemberProfile?.displayName || 'Famille',
+                moduleSource: 'budget',
+                entryTime: timeStr,
+                entryDate: dateStr,
+                comment: `Vers ${tarAcc.name}`
+              };
+              const targetTransaction = {
+                ...sourceTransaction,
+                id: `tx-tf-tar-${transferId}`,
+                type: 'income' as const,
+                title: `Virement entrant : ${transferForm.title || srcAcc.name}`,
+                accountId: tarAcc.id,
+                comment: `Depuis ${srcAcc.name}`
+              };
+
+              if ((!client || !navigator.onLine) && onAddTransaction) {
+                await onAddTransaction(sourceTransaction);
+                await onAddTransaction(targetTransaction);
+                setIsTransferModalOpen(false);
+                alert('Virement conservé. Il sera synchronisé au retour du réseau.');
+                return;
+              }
+
               if (client) {
-                // Deduct source
-                const srcAcc = accounts.find(a => a.id === transferForm.sourceAccountId)!;
-                const tarAcc = accounts.find(a => a.id === transferForm.targetAccountId)!;
-                
-                await client.from('accounts').update({ balance: srcAcc.balance - amt }).eq('id', srcAcc.id);
-                await client.from('accounts').update({ balance: tarAcc.balance + amt }).eq('id', tarAcc.id);
-
-                // Add double transactions
-                const now = new Date();
-                const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                const dateStr = now.toISOString().split('T')[0];
-
-                await client.from('transactions').insert([
-                  {
-                    id: `tx-tf-src-${Date.now()}`,
-                    foyer_id: foyerId,
-                    amount: amt,
-                    type: 'expense',
-                    category: 'Autres',
-                    sub_category: 'Virement',
-                    date: dateStr,
-                    title: `Virement sortant: ${transferForm.title}`,
-                    account_id: srcAcc.id,
-                    comment: serializeTransactionComment(`Vers ${tarAcc.name}`, {
-                      moduleSource: 'budget',
-                      entryTime: timeStr,
-                      entryDate: dateStr
-                    })
-                  },
-                  {
-                    id: `tx-tf-tar-${Date.now()}`,
-                    foyer_id: foyerId,
-                    amount: amt,
-                    type: 'income',
-                    category: 'Autres',
-                    sub_category: 'Virement',
-                    date: dateStr,
-                    title: `Virement entrant: ${transferForm.title}`,
-                    account_id: tarAcc.id,
-                    comment: serializeTransactionComment(`Depuis ${srcAcc.name}`, {
-                      moduleSource: 'budget',
-                      entryTime: timeStr,
-                      entryDate: dateStr
-                    })
-                  }
-                ]);
+                const { error: rpcError } = await client.rpc('transfer_budget_funds', {
+                  p_foyer_id: foyerId,
+                  p_source_account_id: srcAcc.id,
+                  p_target_account_id: tarAcc.id,
+                  p_amount: amt,
+                  p_title: transferForm.title || 'Virement interne',
+                  p_source_transaction_id: sourceTransaction.id,
+                  p_target_transaction_id: targetTransaction.id,
+                  p_transaction_date: dateStr,
+                  p_entry_time: timeStr
+                });
+                if (rpcError) {
+                  await client.from('accounts').update({ balance: srcAcc.balance - amt }).eq('id', srcAcc.id);
+                  await client.from('accounts').update({ balance: tarAcc.balance + amt }).eq('id', tarAcc.id);
+                  const { error: insertError } = await client.from('transactions').insert([
+                    {
+                      id: sourceTransaction.id,
+                      foyer_id: foyerId,
+                      amount: amt, type: 'expense', category: 'Autres', sub_category: 'Virement', date: dateStr,
+                      title: sourceTransaction.title, account_id: srcAcc.id,
+                      comment: serializeTransactionComment(sourceTransaction.comment, { moduleSource: 'budget', entryTime: timeStr, entryDate: dateStr })
+                    },
+                    {
+                      id: targetTransaction.id,
+                      foyer_id: foyerId,
+                      amount: amt, type: 'income', category: 'Autres', sub_category: 'Virement', date: dateStr,
+                      title: targetTransaction.title, account_id: tarAcc.id,
+                      comment: serializeTransactionComment(targetTransaction.comment, { moduleSource: 'budget', entryTime: timeStr, entryDate: dateStr })
+                    }
+                  ]);
+                  if (insertError) throw insertError;
+                }
               }
 
               setAccounts(prev => prev.map(a => {
@@ -3818,6 +3971,7 @@ export const Budget: React.FC<BudgetProps> = ({
                 if (a.id === transferForm.targetAccountId) return { ...a, balance: a.balance + amt };
                 return a;
               }));
+              setTransactions(prev => [targetTransaction, sourceTransaction, ...prev]);
 
               setIsTransferModalOpen(false);
               alert('🔄 Virement effectué avec succès !');

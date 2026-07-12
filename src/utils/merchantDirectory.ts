@@ -205,6 +205,23 @@ const readMerchantPreferences = (): Record<string, MerchantPreference> => {
   }
 };
 
+export const getMerchantPreferences = (): Array<{ merchantKey: string; preference: MerchantPreference }> => (
+  Object.entries(readMerchantPreferences())
+    .map(([merchantKey, preference]) => ({ merchantKey, preference }))
+    .sort((left, right) => right.preference.updatedAt.localeCompare(left.preference.updatedAt))
+);
+
+export const removeMerchantPreference = (merchantKey: string): void => {
+  try {
+    const current = readMerchantPreferences();
+    delete current[merchantKey];
+    if (Object.keys(current).length === 0) localStorage.removeItem(MERCHANT_PREFERENCES_KEY);
+    else localStorage.setItem(MERCHANT_PREFERENCES_KEY, JSON.stringify(current));
+  } catch {
+    // Preference cleanup is optional and must not block the budget.
+  }
+};
+
 export const getMerchantPreference = (merchant: string): MerchantPreference | null => {
   const key = findMerchantBrand(merchant)?.id || normalizeMerchantKey(merchant);
   if (!key) return null;

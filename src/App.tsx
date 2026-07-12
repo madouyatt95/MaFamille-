@@ -10941,16 +10941,22 @@ function App() {
     try {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (!currentUser) return false;
-      const { error: transactionError } = await supabase
-        .from('transactions')
-        .upsert(item.transaction, { onConflict: 'id' });
-      if (transactionError) throw transactionError;
-      if (item.accountUpdate) {
-        const { error: accountError } = await supabase
-          .from('accounts')
-          .update({ balance: item.accountUpdate.balance })
-          .eq('id', item.accountUpdate.id);
-        if (accountError) throw accountError;
+      const { error: atomicError } = await supabase.rpc('upsert_budget_transaction', { p_transaction: item.transaction });
+      if (atomicError) {
+        const { error: transactionError } = await supabase.from('transactions').upsert(item.transaction, { onConflict: 'id' });
+        if (transactionError) throw transactionError;
+        if (item.accountUpdate) {
+          const { error: rpcError } = item.accountDelta
+            ? await supabase.rpc('adjust_budget_account_balance', {
+                p_account_id: item.accountDelta.id,
+                p_delta: item.accountDelta.delta
+              })
+            : { error: new Error('RPC delta unavailable') };
+          const { error: accountError } = rpcError
+            ? await supabase.from('accounts').update({ balance: item.accountUpdate.balance }).eq('id', item.accountUpdate.id)
+            : { error: null };
+          if (accountError) throw accountError;
+        }
       }
       removePendingTransactionSync(item.id);
       return true;
@@ -11055,6 +11061,7 @@ function App() {
     }
 
     let accountUpdate: PendingTransactionSync['accountUpdate'];
+    let accountDelta: PendingTransactionSync['accountDelta'];
     setTransactions(prev => [finalTx, ...prev]);
 
     // Update bank account balance if accountId is provided
@@ -11067,6 +11074,7 @@ function App() {
           acc.id === finalTx.accountId ? { ...acc, balance: updatedBalance } : acc
         )));
         accountUpdate = { id: currentAccount.id, balance: updatedBalance };
+        accountDelta = { id: currentAccount.id, delta: change };
       }
     }
 
@@ -11177,6 +11185,7 @@ function App() {
         foyerId: activeFoyerId,
         queuedAt: nowStr,
         accountUpdate,
+        accountDelta,
         transaction: {
           id,
           foyer_id: activeFoyerId,
@@ -13447,6 +13456,7 @@ function App() {
     if (activeTab === 'budget') {
       return (
         <Budget 
+          key={foyer?.id || 'budget-no-foyer'}
           transactions={appTransactions}
           setTransactions={setTransactions}
           savingGoals={appSavingGoals}

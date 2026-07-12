@@ -75,7 +75,7 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // PARTIE CACHING PWA
-const CACHE_NAME = 'myfamily-plus-cache-v11-controlled-updates';
+const CACHE_NAME = 'myfamily-plus-cache-v12-budget-integrity';
 const ASSETS_TO_CACHE = [
   '/',
   '/app',

@@ -5,6 +5,7 @@ export type PendingTransactionSync = {
   foyerId: string;
   transaction: Record<string, unknown>;
   accountUpdate?: { id: string; balance: number };
+  accountDelta?: { id: string; delta: number };
   queuedAt: string;
 };
 
@@ -35,4 +36,3 @@ export const removePendingTransactionSync = (id: string): void => {
     // Keep the existing queue if storage cannot be updated.
   }
 };
-
