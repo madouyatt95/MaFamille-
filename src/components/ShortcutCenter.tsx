@@ -21,9 +21,11 @@ import {
   MessageCircleMore,
   Nfc,
   PanelTop,
+  Plus,
   ScanLine,
   ShoppingCart,
   Smartphone,
+  Tag,
   Trash2,
   Wallet
 } from 'lucide-react';
@@ -148,6 +150,51 @@ const NFC_STEPS = [
   'Approchez l’iPhone du tag pour tester l’ouverture.'
 ] as const;
 
+const WALLET_LINK_TEMPLATE = 'https://myfamilyplus.fr/quick-expense?amount=[Montant]&merchant=[Commerçant]&date=[Date]&currency=[Devise]';
+const NFC_PROFILES_KEY = 'mf_nfc_profiles_v1';
+
+interface NfcProfile {
+  id: string;
+  name: string;
+  action: QuickActionId;
+  createdAt: string;
+}
+
+const readNfcProfiles = (): NfcProfile[] => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(NFC_PROFILES_KEY) || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry): entry is NfcProfile => (
+      typeof entry?.id === 'string'
+      && typeof entry?.name === 'string'
+      && QUICK_ACTION_GUIDES.some((guide) => guide.id === entry?.action)
+    ));
+  } catch {
+    return [];
+  }
+};
+
+const writeNfcProfiles = (profiles: NfcProfile[]): void => {
+  try {
+    localStorage.setItem(NFC_PROFILES_KEY, JSON.stringify(profiles));
+  } catch {
+    // NFC links remain available even when private storage is unavailable.
+  }
+};
+
+const shortcutSetupSteps = (action: QuickActionId, label: string, isNativeApp: boolean): string[] => {
+  if (isNativeApp) return [
+    'Ouvrez l’app Raccourcis, touchez +, puis Ajouter une action.',
+    `Choisissez Apps, MyFamily+, puis « ${label} ».`,
+    'Donnez un nom au raccourci. Vous pourrez ensuite l’utiliser avec Siri, le bouton Action ou Toucher le dos.'
+  ];
+  return [
+    'Ouvrez l’app Raccourcis, touchez +, puis Ajouter une action.',
+    `Ajoutez Ouvrir les URL et collez ${quickActionLink(action)}.`,
+    `Nommez le raccourci « ${label} », puis lancez-le une première fois.`
+  ];
+};
+
 const InstructionText: React.FC<{ text: string }> = ({ text }) => {
   const match = text.match(/https?:\/\/\S+|\?[^\s]+/);
   if (!match || match.index === undefined) return <span className="min-w-0">{text}</span>;
@@ -185,6 +232,9 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
   const [qrAction, setQrAction] = useState<QuickActionId | null>(null);
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
+  const [nfcProfiles, setNfcProfiles] = useState<NfcProfile[]>(readNfcProfiles);
+  const [nfcProfileName, setNfcProfileName] = useState('');
+  const [nfcProfileAction, setNfcProfileAction] = useState<QuickActionId>('open-micro');
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -206,6 +256,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
       setActiveTab(initialTab);
       setPreferences(getQuickActionPreferences());
       setHistory(getQuickActionHistory());
+      setNfcProfiles(readNfcProfiles());
     }, 0);
     return () => window.clearTimeout(refreshTimer);
   }, [initialTab, isOpen]);
@@ -273,6 +324,29 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
     const image = await createNativeQrCode(quickActionLink(action));
     setQrImage(image);
     setQrLoading(false);
+  };
+
+  const addNfcProfile = () => {
+    const name = nfcProfileName.trim();
+    if (!name) return;
+    const next = [
+      ...nfcProfiles,
+      {
+        id: globalThis.crypto?.randomUUID?.() || `nfc-${Date.now()}`,
+        name,
+        action: nfcProfileAction,
+        createdAt: new Date().toISOString()
+      }
+    ].slice(-12);
+    setNfcProfiles(next);
+    writeNfcProfiles(next);
+    setNfcProfileName('');
+  };
+
+  const deleteNfcProfile = (id: string) => {
+    const next = nfcProfiles.filter((profile) => profile.id !== id);
+    setNfcProfiles(next);
+    writeNfcProfiles(next);
   };
 
   const walletSetupSteps = isNativeApp ? IPHONE_METHODS[1].steps : WALLET_WEB_STEPS;
@@ -429,6 +503,20 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                         {!isNativeApp && <p className="mt-2 text-[9px] leading-relaxed text-white/40">Cette phrase nécessite l’application iPhone. Sur la version web, utilisez le lien direct.</p>}
                       </div>
 
+                      <div className="rounded-2xl border border-white/8 bg-black/10 p-3">
+                        <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-white/45">
+                          <Smartphone className="h-3.5 w-3.5 text-[#9E94FF]" /> Comment le configurer
+                        </span>
+                        <ol className="mt-3 space-y-2.5">
+                          {shortcutSetupSteps(shortcut.id, shortcut.label, isNativeApp).map((step, index) => (
+                            <li key={step} className="flex gap-2.5 text-[10px] font-medium leading-relaxed text-white/55">
+                              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/7 text-[9px] font-black text-white/65">{index + 1}</span>
+                              <InstructionText text={step} />
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
@@ -482,6 +570,22 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                   </li>
                 ))}
               </ol>
+
+              {!isNativeApp && (
+                <div className="mt-3 rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/8 p-3">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-[#B7AFFF]">Modèle prêt à copier</span>
+                  <code className="mt-2 block break-all whitespace-normal rounded-xl border border-white/8 bg-black/15 px-3 py-2.5 text-[9px] font-semibold leading-relaxed text-white/70">{WALLET_LINK_TEMPLATE}</code>
+                  <p className="mt-2 text-[9px] font-medium leading-relaxed text-white/45">Dans Raccourcis, remplacez chaque élément entre crochets par la variable correspondante proposée par l’automatisation Transaction.</p>
+                  <button
+                    type="button"
+                    onClick={() => void copyValue(WALLET_LINK_TEMPLATE, 'wallet-template')}
+                    className="mt-3 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#6C5CFF] px-3 text-[10px] font-black text-white"
+                  >
+                    {copiedValue === 'wallet-template' ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copiedValue === 'wallet-template' ? 'Modèle copié' : 'Copier le modèle complet'}
+                  </button>
+                </div>
+              )}
 
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
@@ -657,6 +761,60 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
             <div className="px-1">
               <h3 className="text-sm font-black text-white">Lancer une action avec un autocollant NFC</h3>
               <p className="mt-1 text-[11px] leading-relaxed text-white/45">Approchez l’iPhone d’un tag placé dans la cuisine, le portefeuille ou près de l’entrée.</p>
+            </div>
+
+            <div className="rounded-2xl border border-[#6C5CFF]/20 bg-[#6C5CFF]/7 p-4">
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 text-[#9E94FF]" />
+                <strong className="text-xs text-white">Mes tags NFC</strong>
+              </div>
+              <p className="mt-1 text-[10px] font-medium leading-relaxed text-white/45">Donnez un nom à chaque emplacement pour retrouver immédiatement le bon lien.</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                <input
+                  value={nfcProfileName}
+                  onChange={(event) => setNfcProfileName(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === 'Enter') addNfcProfile(); }}
+                  placeholder="Ex. Courses cuisine"
+                  maxLength={40}
+                  className="min-h-11 min-w-0 rounded-xl border border-white/10 bg-black/10 px-3 text-xs font-bold text-white outline-none placeholder:text-white/30 focus:border-[#6C5CFF]"
+                />
+                <select
+                  value={nfcProfileAction}
+                  onChange={(event) => setNfcProfileAction(event.target.value as QuickActionId)}
+                  className="min-h-11 min-w-0 rounded-xl border border-white/10 bg-[#11192A] px-3 text-xs font-bold text-white outline-none focus:border-[#6C5CFF]"
+                >
+                  {QUICK_ACTION_GUIDES.map((shortcut) => <option key={shortcut.id} value={shortcut.id}>{shortcut.label}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={addNfcProfile}
+                  disabled={!nfcProfileName.trim()}
+                  className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#6C5CFF] px-4 text-[10px] font-black text-white disabled:opacity-40"
+                >
+                  <Plus className="h-4 w-4" /> Ajouter
+                </button>
+              </div>
+
+              {nfcProfiles.length > 0 && (
+                <div className="mt-3 space-y-2 border-t border-white/8 pt-3">
+                  {nfcProfiles.map((profile) => {
+                    const shortcut = QUICK_ACTION_GUIDES.find((item) => item.id === profile.action);
+                    const Icon = shortcut?.icon || Nfc;
+                    return (
+                      <div key={profile.id} className="rounded-xl border border-white/8 bg-black/10 p-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ color: shortcut?.color, backgroundColor: `${shortcut?.color || '#6C5CFF'}18` }}><Icon className="h-4 w-4" /></span>
+                          <span className="min-w-0 flex-1"><strong className="block truncate text-[11px] text-white">{profile.name}</strong><small className="mt-0.5 block text-[9px] text-white/40">{shortcut?.label}</small></span>
+                          {isNativeApp && <button type="button" onClick={() => void showQr(profile.action)} className="grid h-9 w-9 place-items-center rounded-xl border border-white/8 bg-white/5 text-[#9E94FF]" aria-label={`Afficher le QR code ${profile.name}`}><ScanLine className="h-4 w-4" /></button>}
+                          <button type="button" onClick={() => void copyValue(quickActionLink(profile.action), `profile-${profile.id}`)} className="grid h-9 w-9 place-items-center rounded-xl border border-white/8 bg-white/5 text-white/60" aria-label={`Copier le lien ${profile.name}`}>{copiedValue === `profile-${profile.id}` ? <CheckCircle2 className="h-4 w-4 text-[#00D26A]" /> : <Copy className="h-4 w-4" />}</button>
+                          <button type="button" onClick={() => deleteNfcProfile(profile.id)} className="grid h-9 w-9 place-items-center rounded-xl text-red-400/70" aria-label={`Supprimer ${profile.name}`}><Trash2 className="h-4 w-4" /></button>
+                        </div>
+                        <code className="mt-2 block break-all whitespace-normal text-[9px] leading-relaxed text-white/45">{quickActionLink(profile.action)}</code>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="rounded-2xl border border-white/8 bg-white/[0.035] p-4">

@@ -95,43 +95,84 @@ export const normalizeMerchantKey = (merchant: string): string => normalizeMerch
   .replace(/\s+/g, ' ')
   .trim();
 
+const MERCHANT_BRAND_OVERRIDES_KEY = 'mf_merchant_brand_overrides_v1';
+
+const readMerchantBrandOverrides = (): Record<string, string> => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MERCHANT_BRAND_OVERRIDES_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+export const getMerchantBrands = (): MerchantBrand[] => [...MERCHANT_BRANDS]
+  .sort((left, right) => left.name.localeCompare(right.name, 'fr'));
+
+export const getMerchantBrandOverride = (merchant: string): MerchantBrand | null => {
+  const key = normalizeMerchantKey(merchant);
+  if (!key) return null;
+  const brandId = readMerchantBrandOverrides()[key];
+  return MERCHANT_BRANDS.find((brand) => brand.id === brandId) || null;
+};
+
+export const saveMerchantBrandOverride = (merchant: string, brandId: string | null): void => {
+  const key = normalizeMerchantKey(merchant);
+  if (!key) return;
+  try {
+    const current = readMerchantBrandOverrides();
+    if (brandId && MERCHANT_BRANDS.some((brand) => brand.id === brandId)) current[key] = brandId;
+    else delete current[key];
+    localStorage.setItem(MERCHANT_BRAND_OVERRIDES_KEY, JSON.stringify(current));
+  } catch {
+    // The transaction remains usable when local storage is unavailable.
+  }
+};
+
+const containsMerchantAlias = (source: string, alias: string): boolean => (
+  source === alias
+  || source.startsWith(`${alias} `)
+  || source.endsWith(` ${alias}`)
+  || source.includes(` ${alias} `)
+);
+
 export const findMerchantBrandByExplicitAlias = (merchant: string): MerchantBrand | null => {
   const normalized = normalizeMerchantKey(merchant);
   if (!normalized) return null;
+  const override = getMerchantBrandOverride(merchant);
+  if (override) return override;
   return MERCHANT_BRANDS
     .flatMap(brand => [brand.name, ...brand.aliases].map(alias => ({ brand, alias: normalizeMerchantText(alias) })))
-    .filter(candidate => candidate.alias && (
-      normalized === candidate.alias
-      || normalized.startsWith(`${candidate.alias} `)
-      || normalized.endsWith(` ${candidate.alias}`)
-      || normalized.includes(` ${candidate.alias} `)
-    ))
+    .filter(candidate => candidate.alias && containsMerchantAlias(normalized, candidate.alias))
     .sort((left, right) => right.alias.length - left.alias.length)[0]?.brand || null;
 };
 
 export const findMerchantBrand = (merchant: string): MerchantBrand | null => {
   const normalized = normalizeMerchantKey(merchant);
   if (!normalized) return null;
+  const override = getMerchantBrandOverride(merchant);
+  if (override) return override;
 
   const exactMatches = MERCHANT_BRANDS.flatMap((brand) => (
     [brand.name, ...brand.aliases]
       .map(normalizeMerchantText)
       .map((candidate) => {
         if (normalized === candidate) return { brand, score: 3000 + candidate.length };
-        if (normalized.includes(candidate)) return { brand, score: 2000 + candidate.length };
-        if (candidate.includes(normalized)) return { brand, score: 1000 + normalized.length - (candidate.length - normalized.length) };
+        if (candidate.length >= 3 && containsMerchantAlias(normalized, candidate)) return { brand, score: 2000 + candidate.length };
         return null;
       })
       .filter((candidate): candidate is { brand: MerchantBrand; score: number } => candidate !== null)
   )).sort((left, right) => right.score - left.score);
   if (exactMatches[0]) return exactMatches[0].brand;
 
-  const merchantTokens = normalized.split(' ').filter((token) => token.length >= 4);
+  const merchantTokens = normalized.split(' ').filter((token) => token.length >= 5);
   return MERCHANT_BRANDS.find((brand) => [brand.name, ...brand.aliases].some((candidate) => {
-    const candidateTokens = normalizeMerchantText(candidate).split(' ').filter((token) => token.length >= 4);
+    const candidateTokens = normalizeMerchantText(candidate).split(' ').filter((token) => token.length >= 5);
     return merchantTokens.some((token) => candidateTokens.some((candidateToken) => {
-      const maxDistance = Math.max(token.length, candidateToken.length) >= 8 ? 2 : 1;
-      return levenshteinDistance(token, candidateToken) <= maxDistance;
+      if (token[0] !== candidateToken[0]) return false;
+      const longest = Math.max(token.length, candidateToken.length);
+      return levenshteinDistance(token, candidateToken) <= 1
+        && Math.min(token.length, candidateToken.length) / longest >= 0.72;
     }));
   })) || null;
 };

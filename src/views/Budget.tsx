@@ -30,7 +30,16 @@ import { getSupabaseClient, serializeCategoryIcon, serializeTransactionComment, 
 import { DEFAULT_CATEGORIES } from '../data/budgetCategories';
 import { compressImageToBlob, isDataUrl, isRemoteUrl, uploadBlobToStorage } from '../utils/imageCompressor';
 import { MerchantLogo } from '../components/MerchantLogo';
-import { cleanMerchantName, findMerchantBrand, findMerchantBrandByExplicitAlias, normalizeMerchantKey, saveMerchantPreference } from '../utils/merchantDirectory';
+import {
+  cleanMerchantName,
+  findMerchantBrand,
+  findMerchantBrandByExplicitAlias,
+  getMerchantBrandOverride,
+  getMerchantBrands,
+  normalizeMerchantKey,
+  saveMerchantBrandOverride,
+  saveMerchantPreference
+} from '../utils/merchantDirectory';
 
 const BudgetExport = lazy(() => import('./BudgetExport').then(module => ({ default: module.BudgetExport })));
 const BudgetImport = lazy(() => import('./BudgetImport').then(module => ({ default: module.BudgetImport })));
@@ -348,6 +357,9 @@ export const Budget: React.FC<BudgetProps> = ({
     dateTime?: string;
   } | null>(null);
   const [rememberMerchantRule, setRememberMerchantRule] = useState(false);
+  const [merchantLogoRevision, setMerchantLogoRevision] = useState(0);
+  const merchantBrands = useMemo(() => getMerchantBrands(), []);
+  const merchantBrandOverride = getMerchantBrandOverride(txForm.title);
 
   const [catForm, setCatForm] = useState({
     name: '',
@@ -3156,12 +3168,29 @@ export const Budget: React.FC<BudgetProps> = ({
                 </div>
               )}
               {txForm.title && (
-                <div className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 p-3">
-                  <MerchantLogo merchant={txForm.title} className="h-11 w-11" strict={!!receiptDraftMeta} />
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-black uppercase tracking-wider text-white/35">{(receiptDraftMeta ? findMerchantBrandByExplicitAlias(txForm.title) : findMerchantBrand(txForm.title)) ? 'Enseigne reconnue' : 'Commerce'}</p>
-                    <p className="truncate text-sm font-extrabold text-white">{(receiptDraftMeta ? findMerchantBrandByExplicitAlias(txForm.title) : findMerchantBrand(txForm.title))?.name || txForm.title}</p>
+                <div className="space-y-3 rounded-2xl border border-white/8 bg-white/4 p-3">
+                  <div className="flex items-center gap-3">
+                    <MerchantLogo key={`${txForm.title}-${merchantLogoRevision}`} merchant={txForm.title} className="h-11 w-11" strict={!!receiptDraftMeta} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[9px] font-black uppercase tracking-wider text-white/35">{(receiptDraftMeta ? findMerchantBrandByExplicitAlias(txForm.title) : findMerchantBrand(txForm.title)) ? 'Enseigne reconnue' : 'Commerce'}</p>
+                      <p className="truncate text-sm font-extrabold text-white">{(receiptDraftMeta ? findMerchantBrandByExplicitAlias(txForm.title) : findMerchantBrand(txForm.title))?.name || txForm.title}</p>
+                    </div>
                   </div>
+                  <label className="block border-t border-white/7 pt-3">
+                    <span className="mb-1.5 block text-[9px] font-black uppercase tracking-wider text-white/40">Logo de l’enseigne</span>
+                    <select
+                      value={merchantBrandOverride?.id || ''}
+                      onChange={(event) => {
+                        saveMerchantBrandOverride(txForm.title, event.target.value || null);
+                        setMerchantLogoRevision((current) => current + 1);
+                      }}
+                      className="min-h-10 w-full rounded-xl border border-white/10 bg-[#07111F]/60 px-3 text-xs font-bold text-white outline-none focus:border-[#6C5CFF]"
+                    >
+                      <option value="">Détection automatique</option>
+                      {merchantBrands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                    </select>
+                    <small className="mt-1.5 block text-[9px] leading-relaxed text-white/35">Votre correction reste sur cet appareil et sera réutilisée pour ce même libellé.</small>
+                  </label>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3">
