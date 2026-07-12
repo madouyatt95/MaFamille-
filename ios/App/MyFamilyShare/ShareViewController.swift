@@ -18,8 +18,11 @@ private struct SharedPayloadManifest: Codable {
 
 final class ShareViewController: UIViewController {
     private let appGroupIdentifier = "group.fr.myfamilyplus.app"
+    private let pendingShareIdKey = "mf_pending_share_id"
     private let statusLabel = UILabel()
+    private let openButton = UIButton(type: .system)
     private let stateQueue = DispatchQueue(label: "fr.myfamilyplus.share-state")
+    private var pendingDeepLink: URL?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -36,10 +39,26 @@ final class ShareViewController: UIViewController {
         statusLabel.textAlignment = .center
         statusLabel.numberOfLines = 0
         view.addSubview(statusLabel)
+
+        openButton.translatesAutoresizingMaskIntoConstraints = false
+        openButton.setTitle("Ouvrir MyFamily+", for: .normal)
+        openButton.setTitleColor(.white, for: .normal)
+        openButton.titleLabel?.font = .systemFont(ofSize: 16, weight: .bold)
+        openButton.backgroundColor = UIColor(red: 0.42, green: 0.36, blue: 1, alpha: 1)
+        openButton.layer.cornerRadius = 14
+        openButton.contentEdgeInsets = UIEdgeInsets(top: 14, left: 22, bottom: 14, right: 22)
+        openButton.isHidden = true
+        openButton.addTarget(self, action: #selector(retryOpenApp), for: .touchUpInside)
+        view.addSubview(openButton)
+
         NSLayoutConstraint.activate([
             statusLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             statusLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
-            statusLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+            statusLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -34),
+            openButton.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 24),
+            openButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            openButton.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
+            openButton.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24)
         ])
     }
 
@@ -169,6 +188,7 @@ final class ShareViewController: UIViewController {
         guard let inbox = inboxURL(), let data = try? JSONEncoder().encode(manifest) else { return false }
         do {
             try data.write(to: inbox.appendingPathComponent("\(manifest.id).json"), options: .atomic)
+            UserDefaults(suiteName: appGroupIdentifier)?.set(manifest.id, forKey: pendingShareIdKey)
             return true
         } catch {
             return false
@@ -193,20 +213,41 @@ final class ShareViewController: UIViewController {
         }
         components.queryItems = queryItems
         guard let deepLink = components.url else {
-            extensionContext?.completeRequest(returningItems: nil)
+            statusLabel.text = "Le contenu n’a pas pu être préparé."
             return
         }
 
+        pendingDeepLink = deepLink
+        openButton.isHidden = false
+        statusLabel.text = persisted
+            ? "Votre contenu est prêt dans MyFamily+."
+            : "MyFamily+ va recevoir ce contenu sans fichier joint."
+        attemptOpenApp(deepLink)
+    }
+
+    @objc private func retryOpenApp() {
+        guard let pendingDeepLink else { return }
+        attemptOpenApp(pendingDeepLink)
+    }
+
+    private func attemptOpenApp(_ deepLink: URL) {
         statusLabel.text = "Ouverture de MyFamily+…"
+        openButton.isEnabled = false
         extensionContext?.open(deepLink) { success in
+            DispatchQueue.main.async {
+                self.openButton.isEnabled = true
+            }
             if success {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.extensionContext?.completeRequest(returningItems: nil) }
+                // Do not complete the extension here: doing so can immediately
+                // return the user to the source application after MyFamily+ opens.
                 return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 let opened = self.openDeepLinkThroughResponderChain(deepLink)
-                self.statusLabel.text = opened ? "MyFamily+ s’ouvre…" : "Ouvrez MyFamily+ pour retrouver le partage."
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { self.extensionContext?.completeRequest(returningItems: nil) }
+                self.statusLabel.text = opened
+                    ? "MyFamily+ s’ouvre…"
+                    : "Touchez « Ouvrir MyFamily+ ». Le contenu restera disponible si vous ouvrez l’application manuellement."
+                self.openButton.isHidden = opened
             }
         }
     }

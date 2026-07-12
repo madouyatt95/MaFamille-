@@ -18,6 +18,7 @@ private struct SharedInboxManifest: Codable {
 
 @objc(SharedInboxPlugin)
 public class SharedInboxPlugin: CAPPlugin, CAPBridgedPlugin {
+    private let pendingShareIdKey = "mf_pending_share_id"
     public let identifier = "SharedInboxPlugin"
     public let jsName = "SharedInbox"
     public let pluginMethods: [CAPPluginMethod] = [
@@ -26,13 +27,27 @@ public class SharedInboxPlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     @objc func consumeQuickAction(_ call: CAPPluginCall) {
-        guard let pending = MyFamilyQuickActionStore.consume() else {
-            call.resolve(["action": "", "query": ""])
+        if let pending = MyFamilyQuickActionStore.consume() {
+            call.resolve([
+                "action": pending.action,
+                "query": pending.query
+            ])
             return
         }
+
+        let defaults = UserDefaults(suiteName: MyFamilyQuickActionStore.appGroupIdentifier)
+        if let shareId = defaults?.string(forKey: pendingShareIdKey), !shareId.isEmpty {
+            let encodedShareId = shareId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? shareId
+            call.resolve([
+                "action": "share-intake",
+                "query": "action=share-intake&shareId=\(encodedShareId)"
+            ])
+            return
+        }
+
         call.resolve([
-            "action": pending.action,
-            "query": pending.query
+            "action": "",
+            "query": ""
         ])
     }
 
@@ -63,6 +78,10 @@ public class SharedInboxPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         manifest.files.forEach { try? FileManager.default.removeItem(at: inbox.appendingPathComponent($0.path)) }
         try? FileManager.default.removeItem(at: manifestURL)
+        let defaults = UserDefaults(suiteName: MyFamilyQuickActionStore.appGroupIdentifier)
+        if defaults?.string(forKey: pendingShareIdKey) == manifest.id {
+            defaults?.removeObject(forKey: pendingShareIdKey)
+        }
         call.resolve([
             "id": manifest.id,
             "title": manifest.title,

@@ -545,11 +545,11 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
         {activeTab === 'iphone' && (
           <section className="space-y-3">
             <div className="px-1">
-              <h3 className="text-sm font-black text-white">Comment voulez-vous la lancer ?</h3>
-              <p className="mt-1 text-[11px] leading-relaxed text-white/45">Ouvrez MyFamily+ une première fois, puis choisissez la méthode qui vous convient.</p>
+              <h3 className="text-sm font-black text-white">Choisir où lancer l’action</h3>
+              <p className="mt-1 text-[11px] leading-relaxed text-white/45">Commencez par ouvrir l’application une fois après chaque nouvelle installation.</p>
             </div>
 
-            <article className={`overflow-hidden rounded-2xl border p-4 ${focusWalletSetup ? 'border-[#00D26A]/35 bg-[#00D26A]/8 shadow-[0_16px_40px_rgba(0,210,106,0.08)]' : 'border-white/8 bg-white/[0.035]'}`}>
+            <article className={`overflow-hidden rounded-[24px] border p-4 ${focusWalletSetup ? 'border-[#00D26A]/35 bg-[#00D26A]/8 shadow-[0_16px_40px_rgba(0,210,106,0.08)]' : 'border-white/8 bg-white/[0.035]'}`}>
               <div className="flex items-start gap-3">
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#00D26A]/14 text-[#00D26A]">
                   <Wallet className="h-5 w-5" />
@@ -565,7 +565,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                 {walletSetupSteps.map((step, index) => (
                   <li key={step} className="flex gap-3 text-[11px] font-medium leading-relaxed text-white/60">
                     <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#00D26A]/14 text-[9px] font-black text-[#00D26A]">{index + 1}</span>
-                    <InstructionText text={step} />
+                    {isNativeApp ? <span>{step}</span> : <InstructionText text={step} />}
                   </li>
                 ))}
               </ol>
@@ -594,7 +594,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
               const Icon = method.icon;
               const steps = method.steps;
               return (
-                <details key={method.title} className="group overflow-hidden rounded-2xl border border-white/8 bg-white/[0.035]">
+                <details key={method.title} className="group overflow-hidden rounded-[22px] border border-white/8 bg-white/[0.035]">
                   <summary className="flex cursor-pointer list-none items-center gap-3 p-4">
                     <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ color: method.color, backgroundColor: `${method.color}16` }}>
                       <Icon className="h-4 w-4" />
