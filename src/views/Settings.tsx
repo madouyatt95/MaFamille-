@@ -52,6 +52,7 @@ import type { User } from '@supabase/supabase-js';
 import { defaultSmartFamilyPreferences, type SmartFamilyPreferences } from '../utils/smartFamily';
 import { MemberAvatar } from '../components/MemberAvatar';
 import { ShortcutCenter } from '../components/ShortcutCenter';
+import { AppDiagnosticsPanel } from '../components/AppDiagnosticsPanel';
 import { QUICK_ACTION_GUIDES } from '../constants/quickActionGuides';
 import type { QuickActionId } from '../utils/quickActionPreferences';
 import { createLocalBackup, downloadLocalBackup, restoreLocalBackup } from '../utils/localBackup';
@@ -85,6 +86,7 @@ const SETTINGS_SEARCH_ITEMS = [
   { tab: 'avance', target: 'settings-parental', title: 'Contrôle parental', description: 'PIN, récompenses et protections' },
   { tab: 'avance', target: 'settings-local-backup', title: 'Sauvegarde locale', description: 'Exporter ou restaurer sur cet appareil' },
   { tab: 'avance', target: 'settings-devices', title: 'Appareils connectés', description: 'Session actuelle et autres appareils' },
+  { tab: 'avance', target: 'settings-diagnostics', title: 'État de MyFamily+', description: 'Synchronisation, notifications et mises à jour' },
   { tab: 'avance', target: 'settings-shortcuts', title: 'Raccourcis iPhone', description: 'Wallet, Siri, NFC et bouton Action' },
   { tab: 'avance', target: 'settings-privacy', title: 'Confidentialité', description: 'Vie privée, droits et documents légaux' }
 ] as const;
@@ -1826,6 +1828,8 @@ export const Settings: React.FC<SettingsProps> = ({
           {sessionMessage && <p className={`rounded-xl border px-3 py-2.5 text-[10px] font-bold ${sessionMessage.type === 'success' ? 'border-[#00D26A]/20 bg-[#00D26A]/8 text-[#00D26A]' : 'border-red-500/20 bg-red-500/8 text-red-400'}`}>{sessionMessage.text}</p>}
         </div>
       )}
+
+      {settingsTab === 'avance' && <AppDiagnosticsPanel isNativeApp={isNativeApp} />}
 
       {settingsTab === 'avance' && (
         <div id="settings-shortcuts" className="glass-panel scroll-mt-5 space-y-4 rounded-2xl border border-white/8 p-5">

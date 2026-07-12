@@ -23,8 +23,18 @@ public class SharedInboxPlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "SharedInbox"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "consume", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "consumeQuickAction", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "consumeQuickAction", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "health", returnType: CAPPluginReturnPromise)
     ]
+
+    @objc func health(_ call: CAPPluginCall) {
+        let root = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: MyFamilyQuickActionStore.appGroupIdentifier)
+        let defaults = UserDefaults(suiteName: MyFamilyQuickActionStore.appGroupIdentifier)
+        call.resolve([
+            "appGroupReady": root != nil,
+            "pendingShare": !(defaults?.string(forKey: pendingShareIdKey) ?? "").isEmpty
+        ])
+    }
 
     @objc func consumeQuickAction(_ call: CAPPluginCall) {
         if let pending = MyFamilyQuickActionStore.consume() {
@@ -38,9 +48,11 @@ public class SharedInboxPlugin: CAPPlugin, CAPBridgedPlugin {
         let defaults = UserDefaults(suiteName: MyFamilyQuickActionStore.appGroupIdentifier)
         if let shareId = defaults?.string(forKey: pendingShareIdKey), !shareId.isEmpty {
             let encodedShareId = shareId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? shareId
+            let target = pendingShareTarget(for: shareId)
+            let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? target
             call.resolve([
                 "action": "share-intake",
-                "query": "action=share-intake&shareId=\(encodedShareId)"
+                "query": "action=share-intake&shareId=\(encodedShareId)&target=\(encodedTarget)"
             ])
             return
         }
@@ -90,5 +102,17 @@ public class SharedInboxPlugin: CAPPlugin, CAPBridgedPlugin {
             "target": manifest.target,
             "files": files
         ])
+    }
+
+    private func pendingShareTarget(for id: String) -> String {
+        guard
+            let root = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: MyFamilyQuickActionStore.appGroupIdentifier),
+            let data = try? Data(contentsOf: root.appendingPathComponent("ShareInbox/\(id).json")),
+            let manifest = try? JSONDecoder().decode(SharedInboxManifest.self, from: data),
+            !manifest.target.isEmpty
+        else {
+            return "vault"
+        }
+        return manifest.target
     }
 }

@@ -19,6 +19,10 @@ type NativeSharedInboxPlugin = {
     action?: string;
     query?: string;
   }>;
+  health(): Promise<{
+    appGroupReady?: boolean;
+    pendingShare?: boolean;
+  }>;
 };
 
 const SharedInbox = registerPlugin<NativeSharedInboxPlugin>('SharedInbox');
@@ -67,8 +71,21 @@ export const consumeNativeQuickAction = async (): Promise<{ action: string; quer
   return quickActionConsumption;
 };
 
+export const getNativeSharedInboxHealth = async (): Promise<{ appGroupReady: boolean; pendingShare: boolean } | null> => {
+  if (Capacitor.getPlatform() !== 'ios') return null;
+  try {
+    const result = await SharedInbox.health();
+    return {
+      appGroupReady: result.appGroupReady === true,
+      pendingShare: result.pendingShare === true
+    };
+  } catch {
+    return null;
+  }
+};
+
 export const quickActionLink = (action: string, params: Record<string, string | number | undefined> = {}): string => {
-  const publicOrigin = (import.meta.env.VITE_SITE_URL || 'https://myfamilyplus.fr').replace(/\/+$/, '');
+  const publicOrigin = (import.meta.env?.VITE_SITE_URL || 'https://myfamilyplus.fr').replace(/\/+$/, '');
   const url = new URL(`/action/${action}`, publicOrigin);
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== '') url.searchParams.set(key, String(value));

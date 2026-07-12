@@ -11,6 +11,7 @@ import { consumeNativeQuickAction, consumeNativeSharedInbox } from './utils/nati
 import { pickNativeImage } from './utils/nativeImagePicker';
 import { getQuickActionPreferences, recordQuickActionHistory, saveQuickActionPreferences } from './utils/quickActionPreferences';
 import { cleanMerchantName, findMerchantBrand, getMerchantPreference } from './utils/merchantDirectory';
+import { inferSharedJourneyTarget, resolveQuickActionFromLocation } from './utils/journeyContracts';
 import {
   queueTransactionSync,
   readPendingTransactionSync,
@@ -134,10 +135,7 @@ const isQuickMicroUrl = (): boolean => {
 };
 
 const actionFromLocation = (params: URLSearchParams): string => {
-  const explicit = params.get('action');
-  if (explicit) return explicit;
-  const match = window.location.pathname.match(/^\/action\/([^/]+)/i);
-  return match?.[1] || '';
+  return resolveQuickActionFromLocation(window.location.pathname, params.get('action'));
 };
 
 const normalizeSharedText = (payload: Partial<SharedIntakePayload>): string => (
@@ -145,26 +143,11 @@ const normalizeSharedText = (payload: Partial<SharedIntakePayload>): string => (
 ).toLowerCase();
 
 const guessSharedIntakeTarget = (payload: Partial<SharedIntakePayload>, forced?: string | null): SharedIntakeTarget => {
-  if (forced === 'budget' || forced === 'receipt') return 'budget';
-  if (forced === 'homework' || forced === 'school') return 'homework';
-  if (forced === 'vault' || forced === 'document') return 'vault';
-  if (forced === 'agenda' || forced === 'event') return 'agenda';
-  if (forced === 'trip' || forced === 'travel') return 'trip';
-  if (forced === 'groceries' || forced === 'shopping') return 'groceries';
-  if (forced === 'memory' || forced === 'souvenir') return 'memory';
-
-  const text = normalizeSharedText(payload);
-  const fileTypes = (payload.files || []).map(file => `${file.type || ''} ${file.name || ''}`.toLowerCase()).join(' ');
-  const all = `${text} ${fileTypes}`;
-
-  if (/ticket|reçu|recu|facture|montant|total|cb|carte bancaire|paiement|receipt|invoice/.test(all)) return 'budget';
-  if (/devoir|exercice|leçon|lecon|math|français|francais|histoire|géographie|geographie|cahier|classe|prof|rendre/.test(all)) return 'homework';
-  if (/pdf|attestation|document|certificat|ordonnance|assurance|contrat|identité|identite|passeport|justificatif/.test(all)) return 'vault';
-  if (/réservation|reservation|vol|hotel|hôtel|train|booking|billet|voyage|départ|depart|arrivée|arrivee/.test(all)) return 'trip';
-  if (/rdv|rendez-vous|agenda|calendrier|événement|evenement|date|invitation/.test(all)) return 'agenda';
-  if (/courses|liste|acheter|produit|panier|supermarché|supermarche|drive|lait|pain|couches/.test(all)) return 'groceries';
-  if ((payload.files || []).some(file => (file.type || '').startsWith('image/'))) return 'memory';
-  return 'vault';
+  return inferSharedJourneyTarget({
+    forced,
+    text: normalizeSharedText(payload),
+    fileTypes: (payload.files || []).map(file => `${file.type || ''} ${file.name || ''}`.toLowerCase())
+  });
 };
 
 const sharedTargetLabel = (target: SharedIntakeTarget): string => ({
@@ -2576,25 +2559,23 @@ function App() {
     });
   }, []);
 
-  const routeSharedIntakePayload = useCallback((next: SharedIntakePayload) => {
-    setSharedIntake(next);
-    setSharedIntakeTarget(next.suggestedTarget);
-    if (next.suggestedTarget === 'homework') {
+  const navigateToSharedIntakeTarget = useCallback((target: SharedIntakeTarget) => {
+    if (target === 'homework') {
       setActiveTab('menu');
       setActiveModule('ecole');
-    } else if (next.suggestedTarget === 'vault') {
+    } else if (target === 'vault') {
       setActiveTab('menu');
       setActiveModule('documents');
-    } else if (next.suggestedTarget === 'trip') {
+    } else if (target === 'trip') {
       setActiveTab('menu');
       setActiveModule('voyages');
-    } else if (next.suggestedTarget === 'agenda') {
+    } else if (target === 'agenda') {
       setActiveTab('menu');
       setActiveModule('agenda');
-    } else if (next.suggestedTarget === 'groceries') {
+    } else if (target === 'groceries') {
       setActiveTab('menu');
       setActiveModule('courses');
-    } else if (next.suggestedTarget === 'memory') {
+    } else if (target === 'memory') {
       setActiveTab('menu');
       setActiveModule('capsule');
     } else {
@@ -2603,6 +2584,12 @@ function App() {
     }
   }, [setActiveModule]);
 
+  const routeSharedIntakePayload = useCallback((next: SharedIntakePayload) => {
+    setSharedIntake(next);
+    setSharedIntakeTarget(next.suggestedTarget);
+    navigateToSharedIntakeTarget(next.suggestedTarget);
+  }, [navigateToSharedIntakeTarget]);
+
   const openSharedIntakeFromParams = useCallback((params: URLSearchParams, action: string = 'share-intake') => {
     const shareId = params.get('shareId');
     const shareKind = params.get('kind') || params.get('target');
@@ -2610,9 +2597,8 @@ function App() {
     const sharedText = params.get('text') || '';
     const sharedUrl = params.get('url') || '';
 
-    setActiveTab('budget');
-    setActiveModule('');
     if (shareId) {
+      if (shareKind) navigateToSharedIntakeTarget(guessSharedIntakeTarget({}, shareKind));
       readSharedPayload(shareId).then((payload) => {
         const next = buildSharedIntakePayload(payload || { id: shareId }, shareKind || (action === 'share-receipt' ? 'receipt' : null));
         routeSharedIntakePayload(next);
@@ -2626,7 +2612,7 @@ function App() {
       }, shareKind);
       routeSharedIntakePayload(next);
     }
-  }, [readSharedPayload, routeSharedIntakePayload, setActiveModule]);
+  }, [navigateToSharedIntakeTarget, readSharedPayload, routeSharedIntakePayload]);
 
   useEffect(() => {
     const handleQuickMicroEvent = () => requestQuickMicroOpen();
@@ -4079,6 +4065,8 @@ function App() {
       }
 
       setIsSyncReady(true);
+      localStorage.setItem('mf_last_cloud_sync_at', new Date().toISOString());
+      localStorage.removeItem('mf_last_cloud_sync_error');
       if (abonnementsRes.success && abonnementsRes.data) {
         const abos = abonnementsRes.data.map((a: DbRow) => ({
           id: a.id,
@@ -4092,6 +4080,7 @@ function App() {
       }
     }).catch((err: unknown) => {
       console.error("Error loading foyer tables background data:", err);
+      localStorage.setItem('mf_last_cloud_sync_error', err instanceof Error ? err.message : 'Synchronisation interrompue.');
     });
 
     const trackedLoad = loadPromise.finally(() => {

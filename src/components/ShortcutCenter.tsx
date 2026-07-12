@@ -77,7 +77,9 @@ const IPHONE_METHODS = [
       'Ouvrez Raccourcis, puis Automatisation et Nouvelle automatisation.',
       'Choisissez Transaction, sélectionnez la carte souhaitée et cochez Paiement.',
       'Ajoutez l’action MyFamily+ « Transaction Wallet vers Budget ».',
-      'Associez ses champs Montant, Commerçant, Date et heure, Devise et Carte aux informations proposées par l’automatisation Transaction.',
+      'Dans la carte MyFamily+, touchez Montant, puis Sélectionner une variable, Entrée du raccourci et Montant.',
+      'Répétez pour Commerçant, Date et heure, Devise et Carte avec les informations proposées par la transaction.',
+      'Si ces informations ne sont pas proposées par iOS ou votre banque, laissez les champs vides : vous les compléterez dans MyFamily+.',
       'Choisissez Exécuter immédiatement. Après un paiement, vérifiez le compte et la catégorie dans MyFamily+ avant de valider.'
     ]
   },
@@ -133,10 +135,13 @@ const IPHONE_METHODS = [
   }
 ] as const;
 
+const WALLET_QUICK_EXPENSE_URL = 'https://myfamilyplus.fr/quick-expense';
+const WALLET_QUICK_EXPENSE_TEMPLATE = `${WALLET_QUICK_EXPENSE_URL}?amount=Montant&merchant=Commerçant&date=Date&currency=Devise&card=Carte`;
+
 const WALLET_WEB_STEPS = [
   'Ouvrez Raccourcis, puis Automatisation et Nouvelle automatisation.',
   'Choisissez Transaction, sélectionnez la carte souhaitée et cochez Paiement.',
-  'Ajoutez l’action Ouvrir les URL avec https://myfamilyplus.fr/quick-expense.',
+  `Ajoutez l’action Ouvrir les URL avec ${WALLET_QUICK_EXPENSE_URL}.`,
   'Ajoutez les variables de la transaction dans l’URL : ?amount=Montant&merchant=Commerçant&date=Date&currency=Devise.',
   'Choisissez Exécuter immédiatement. iOS ouvrira le navigateur, puis vous pourrez vérifier la dépense dans MyFamily+.'
 ] as const;
@@ -565,10 +570,32 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                 {walletSetupSteps.map((step, index) => (
                   <li key={step} className="flex gap-3 text-[11px] font-medium leading-relaxed text-white/60">
                     <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#00D26A]/14 text-[9px] font-black text-[#00D26A]">{index + 1}</span>
-                    <span>{step}</span>
+                    <InstructionText text={step} />
                   </li>
                 ))}
               </ol>
+
+              {!isNativeApp && <div className="mt-3 rounded-2xl border border-[#6C5CFF]/25 bg-[#6C5CFF]/8 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-[#9E94FF]">Lien utilisé par le raccourci</span>
+                    <p className="mt-1 text-[10px] font-medium leading-relaxed text-white/50">
+                      Les informations Wallet sont ajoutées à ce lien avant l’ouverture de MyFamily+.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void copyValue(WALLET_QUICK_EXPENSE_TEMPLATE, 'wallet-url-template')}
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-white/65"
+                    aria-label="Copier le modèle de lien Wallet"
+                  >
+                    {copiedValue === 'wallet-url-template' ? <CheckCircle2 className="h-4 w-4 text-[#00D26A]" /> : <Copy className="h-4 w-4" />}
+                  </button>
+                </div>
+                <code className="mt-3 block max-w-full break-all whitespace-normal rounded-xl border border-white/8 bg-black/15 px-3 py-2.5 text-[9px] font-semibold leading-relaxed text-white/72">
+                  {WALLET_QUICK_EXPENSE_TEMPLATE}
+                </code>
+              </div>}
 
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button

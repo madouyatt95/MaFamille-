@@ -42,6 +42,10 @@
   --family-warning: #FFB020;
   --family-text: #FFFFFF;
   --family-text-secondary: rgba(255, 255, 255, 0.70);
+  --family-muted: rgba(255, 255, 255, 0.55);
+  --family-elevated: #101C2D;
+  --family-input: rgba(7, 17, 31, 0.72);
+  --family-overlay: rgba(2, 7, 19, 0.72);
   --family-shadow: rgba(0, 0, 0, 0.5);
   --glass-bg: rgba(255, 255, 255, 0.05);
   --glass-border: rgba(255, 255, 255, 0.07);
@@ -63,6 +67,10 @@
   --family-warning: #B7791F;
   --family-text: #111827;
   --family-text-secondary: rgba(17, 24, 39, 0.66);
+  --family-muted: rgba(17, 24, 39, 0.54);
+  --family-elevated: #FFFFFF;
+  --family-input: rgba(255, 255, 255, 0.92);
+  --family-overlay: rgba(15, 23, 42, 0.30);
   --family-shadow: rgba(15, 23, 42, 0.11);
   --glass-bg: rgba(255, 255, 255, 0.88);
   --glass-border: rgba(15, 23, 42, 0.10);
@@ -84,6 +92,10 @@
   --family-warning: #9A650F;
   --family-text: #3A291F;
   --family-text-secondary: rgba(58, 41, 31, 0.68);
+  --family-muted: rgba(58, 41, 31, 0.56);
+  --family-elevated: #FFF9EC;
+  --family-input: rgba(255, 249, 236, 0.94);
+  --family-overlay: rgba(58, 41, 31, 0.28);
   --family-shadow: rgba(91, 64, 41, 0.15);
   --glass-bg: rgba(255, 249, 236, 0.90);
   --glass-border: rgba(91, 64, 41, 0.12);
@@ -260,6 +272,26 @@ html,
   border-color: rgba(255, 255, 255, 0.12);
   transform: translateY(-2px);
   box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.5);
+}
+
+/* Shared semantic surfaces. New cross-module UI should use these instead of
+ * hard-coded dark colors so light and sepia remain correct by construction. */
+.app-surface {
+  color: var(--family-text);
+  background: var(--family-elevated);
+  border: 1px solid var(--family-border);
+}
+
+.app-field {
+  color: var(--family-text);
+  background: var(--family-input);
+  border: 1px solid var(--family-border);
+}
+
+.app-overlay {
+  background: var(--family-overlay);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
 
 /* Premium radial background glow */
