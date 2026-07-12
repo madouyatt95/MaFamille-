@@ -75,7 +75,7 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // PARTIE CACHING PWA
-const CACHE_NAME = 'myfamily-plus-cache-v9-stable-notifications';
+const CACHE_NAME = 'myfamily-plus-cache-v10-complete-merchant-logos';
 const ASSETS_TO_CACHE = [
   '/',
   '/app',
@@ -107,6 +107,7 @@ const ASSETS_TO_CACHE = [
   '/merchant-logos/leroy-merlin.svg',
   '/merchant-logos/decathlon.svg',
   '/merchant-logos/sncf.svg',
+  '/merchant-logos/ratp.svg',
   '/merchant-logos/uber.svg',
   '/merchant-logos/bolt.svg',
   '/merchant-logos/totalenergies.svg',
@@ -122,7 +123,22 @@ const ASSETS_TO_CACHE = [
   '/merchant-logos/glovo.svg',
   '/merchant-logos/wave.svg',
   '/merchant-logos/jumia.svg',
-  '/merchant-logos/air-senegal.svg'
+  '/merchant-logos/air-senegal.svg',
+  '/merchant-logos/edk.svg',
+  '/merchant-logos/exclusive.svg',
+  '/merchant-logos/yassir.svg',
+  '/merchant-logos/super-u.svg',
+  '/merchant-logos/casino.svg',
+  '/merchant-logos/cora.svg',
+  '/merchant-logos/action.svg',
+  '/merchant-logos/darty.svg',
+  '/merchant-logos/boulanger.svg',
+  '/merchant-logos/deliveroo.svg',
+  '/merchant-logos/uber-eats.svg',
+  '/merchant-logos/shell.svg',
+  '/merchant-logos/bp.svg',
+  '/merchant-logos/air-france.svg',
+  '/merchant-logos/canal-plus.svg'
 ];
 
 const SHARE_DB_NAME = 'myfamily-plus-share-target';

@@ -148,6 +148,26 @@ const NFC_STEPS = [
   'Approchez l’iPhone du tag pour tester l’ouverture.'
 ] as const;
 
+const InstructionText: React.FC<{ text: string }> = ({ text }) => {
+  const match = text.match(/https?:\/\/\S+|\?[^\s]+/);
+  if (!match || match.index === undefined) return <span className="min-w-0">{text}</span>;
+
+  const trailingPunctuation = match[0].match(/[.,;:]$/)?.[0] || '';
+  const value = trailingPunctuation ? match[0].slice(0, -1) : match[0];
+  const before = text.slice(0, match.index).trimEnd();
+  const after = `${trailingPunctuation}${text.slice(match.index + match[0].length)}`.trim();
+
+  return (
+    <span className="min-w-0 flex-1">
+      {before && <span className="block">{before}</span>}
+      <code className="mt-1 block max-w-full break-all whitespace-normal rounded-lg border border-white/8 bg-black/10 px-2 py-1.5 text-[9px] font-semibold leading-relaxed text-white/70">
+        {value}
+      </code>
+      {after && <span className="mt-1 block">{after}</span>}
+    </span>
+  );
+};
+
 export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
   isOpen,
   isNativeApp,
@@ -279,13 +299,13 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
             <p className="truncate text-[11px] font-medium text-white/45">Lancez une fonction sans chercher dans l’application.</p>
           </div>
           <span className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase ${isNativeApp ? 'bg-[#00D26A]/15 text-[#00D26A]' : 'bg-[#6C5CFF]/15 text-[#9E94FF]'}`}>
-            {isNativeApp ? 'iPhone natif' : 'Web'}
+            {isNativeApp ? 'Application iPhone' : 'Version web'}
           </span>
         </div>
       </header>
 
       <main className="mx-auto max-w-3xl space-y-4 px-4 pb-[calc(32px+env(safe-area-inset-bottom))] pt-4">
-        <section className="overflow-hidden rounded-[24px] border border-white/8 bg-white/[0.035] p-4">
+        <section className="overflow-hidden rounded-2xl border border-white/8 bg-white/[0.035] p-4">
           <div className="flex items-start gap-3">
             <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${isNativeApp ? 'bg-[#00D26A]/12 text-[#00D26A]' : 'bg-[#6C5CFF]/12 text-[#9E94FF]'}`}>
               {isNativeApp ? <Smartphone className="h-5 w-5" /> : <Link2 className="h-5 w-5" />}
@@ -294,25 +314,11 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
               <strong className="block text-sm text-white">{isNativeApp ? 'Application iPhone détectée' : 'Version web détectée'}</strong>
               <p className="mt-1 text-[11px] font-medium leading-relaxed text-white/50">
                 {isNativeApp
-                  ? 'Les actions natives peuvent apparaître dans Siri et l’app Raccourcis après le premier lancement de cette version.'
-                  : 'Siri et l’appui long natif nécessitent l’application iPhone. Les liens restent utilisables avec Raccourcis et les tags NFC.'}
+                  ? 'Vos actions MyFamily+ sont disponibles dans Siri et l’app Raccourcis après le premier lancement.'
+                  : 'Les liens rapides fonctionnent avec Raccourcis et les tags NFC. Certaines commandes Siri nécessitent l’application iPhone.'}
               </p>
             </div>
           </div>
-        </section>
-
-        <section className="grid grid-cols-3 gap-2" aria-label="Étapes de configuration">
-          {[
-            ['1', 'Choisir', 'Ce que MyFamily+ doit faire'],
-            ['2', 'Essayer', 'Vérifier le résultat'],
-            ['3', 'Installer', 'Siri, Wallet, bouton ou NFC']
-          ].map(([number, title, detail]) => (
-            <div key={number} className="min-w-0 rounded-xl border border-white/7 bg-white/[0.03] p-2.5 text-center">
-              <span className="mx-auto grid h-5 w-5 place-items-center rounded-full bg-[#6C5CFF]/16 text-[9px] font-black text-[#9E94FF]">{number}</span>
-              <strong className="mt-1.5 block text-[10px] text-white">{title}</strong>
-              <small className="mt-1 block text-[8px] leading-tight text-white/35">{detail}</small>
-            </div>
-          ))}
         </section>
 
         <nav className="grid grid-cols-2 gap-1 rounded-2xl border border-white/8 bg-white/[0.035] p-1 sm:grid-cols-4" aria-label="Sections des raccourcis">
@@ -341,7 +347,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
               <p className="mt-1 text-[11px] leading-relaxed text-white/45">Choisissez une fonction. Vous pourrez d’abord l’essayer, puis décider comment la lancer.</p>
             </div>
 
-            <div className="rounded-[22px] border border-white/8 bg-white/[0.035] p-3">
+            <div className="rounded-2xl border border-white/8 bg-white/[0.035] p-3">
               <div className="flex items-center justify-between gap-3 px-1 pb-3">
                 <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white/45"><ListChecks className="h-4 w-4 text-[#9E94FF]" /> Mes favoris</span>
                 <button type="button" onClick={() => setActiveTab('preferences')} className="text-[10px] font-black text-[#9E94FF]">Modifier</button>
@@ -366,7 +372,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
               </div>
             </div>
 
-            <div className="rounded-[22px] border border-[#00D26A]/14 bg-[#00D26A]/6 p-3">
+            <div className="rounded-2xl border border-[#00D26A]/14 bg-[#00D26A]/6 p-3">
               <p className="px-1 pb-2 text-[10px] font-black uppercase tracking-widest text-[#00D26A]">Raccourcis du foyer</p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {([
@@ -386,7 +392,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
               const Icon = shortcut.icon;
               const isExpanded = expandedShortcut === shortcut.id;
               return (
-                <article key={shortcut.id} className="overflow-hidden rounded-[22px] border border-white/8 bg-white/[0.035]">
+                <article key={shortcut.id} className="overflow-hidden rounded-2xl border border-white/8 bg-white/[0.035]">
                   <button
                     type="button"
                     onClick={() => setExpandedShortcut(current => current === shortcut.id ? null : shortcut.id)}
@@ -456,7 +462,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
               <p className="mt-1 text-[11px] leading-relaxed text-white/45">Ouvrez MyFamily+ une première fois, puis choisissez la méthode qui vous convient.</p>
             </div>
 
-            <article className={`overflow-hidden rounded-[24px] border p-4 ${focusWalletSetup ? 'border-[#00D26A]/35 bg-[#00D26A]/8 shadow-[0_16px_40px_rgba(0,210,106,0.08)]' : 'border-white/8 bg-white/[0.035]'}`}>
+            <article className={`overflow-hidden rounded-2xl border p-4 ${focusWalletSetup ? 'border-[#00D26A]/35 bg-[#00D26A]/8 shadow-[0_16px_40px_rgba(0,210,106,0.08)]' : 'border-white/8 bg-white/[0.035]'}`}>
               <div className="flex items-start gap-3">
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#00D26A]/14 text-[#00D26A]">
                   <Wallet className="h-5 w-5" />
@@ -472,7 +478,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                 {walletSetupSteps.map((step, index) => (
                   <li key={step} className="flex gap-3 text-[11px] font-medium leading-relaxed text-white/60">
                     <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#00D26A]/14 text-[9px] font-black text-[#00D26A]">{index + 1}</span>
-                    <span>{step}</span>
+                    <InstructionText text={step} />
                   </li>
                 ))}
               </ol>
@@ -501,7 +507,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
               const Icon = method.icon;
               const steps = method.steps;
               return (
-                <details key={method.title} className="group overflow-hidden rounded-[22px] border border-white/8 bg-white/[0.035]">
+                <details key={method.title} className="group overflow-hidden rounded-2xl border border-white/8 bg-white/[0.035]">
                   <summary className="flex cursor-pointer list-none items-center gap-3 p-4">
                     <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ color: method.color, backgroundColor: `${method.color}16` }}>
                       <Icon className="h-4 w-4" />
@@ -513,7 +519,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
                     {steps.map((step, index) => (
                       <li key={step} className="flex gap-3 text-[11px] font-medium leading-relaxed text-white/55">
                         <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/7 text-[9px] font-black text-white/70">{index + 1}</span>
-                        <span>{step}</span>
+                        <InstructionText text={step} />
                       </li>
                     ))}
                   </ol>
@@ -522,7 +528,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
             })}
 
             {!isNativeApp && (
-              <div className="flex gap-3 rounded-[22px] border border-[#FFB020]/20 bg-[#FFB020]/8 p-4">
+              <div className="flex gap-3 rounded-2xl border border-[#FFB020]/20 bg-[#FFB020]/8 p-4">
                 <CircleHelp className="mt-0.5 h-5 w-5 shrink-0 text-[#FFB020]" />
                 <p className="text-[11px] font-medium leading-relaxed text-white/55">Sur la version web installée, iOS peut ouvrir le navigateur par défaut au lieu de MyFamily+. Pour Siri, l’appui long et le bouton Action les plus fiables, utilisez l’application iPhone.</p>
               </div>
@@ -537,7 +543,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
               <p className="mt-1 text-[11px] leading-relaxed text-white/45">Ces choix restent sur cet appareil et rendent les raccourcis plus immédiats.</p>
             </div>
 
-            <div className="rounded-[22px] border border-white/8 bg-white/[0.035] p-4">
+            <div className="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
               <div className="flex items-center gap-2"><CircleDollarSign className="h-4 w-4 text-[#00D26A]" /><strong className="text-xs text-white">J’ai payé</strong></div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <label className="block">
@@ -573,7 +579,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
               </label>
             </div>
 
-            <div className="rounded-[22px] border border-white/8 bg-white/[0.035] p-4">
+            <div className="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
               <div className="flex items-center gap-2"><ScanLine className="h-4 w-4 text-[#FFB020]" /><strong className="text-xs text-white">Source proposée au scanner</strong></div>
               {([
                 ['receipt', 'Ticket'],
@@ -602,7 +608,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
               <p className="mt-3 text-[9px] leading-relaxed text-white/38">Dans l’application iPhone, Photo et Galerie s’ouvrent directement. Fichiers est mis en avant pour que vous choisissiez le document. Sur la version web, iOS impose ce dernier geste de confirmation.</p>
             </div>
 
-            <div className="rounded-[22px] border border-white/8 bg-white/[0.035] p-4">
+            <div className="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
               <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-xs font-bold text-white"><ListChecks className="h-4 w-4 text-[#9E94FF]" /> Favoris de l’accueil</span><span className="text-[9px] font-black text-white/35">{preferences.favorites.length}/4</span></div>
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {QUICK_ACTION_GUIDES.map((shortcut) => {
@@ -626,7 +632,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
               </div>
             </div>
 
-            <div className="rounded-[22px] border border-white/8 bg-white/[0.035] p-4">
+            <div className="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
               <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-xs font-bold text-white"><History className="h-4 w-4 text-[#37C9FF]" /> Dernières actions</span>{history.length > 0 && <button type="button" onClick={clearHistory} className="text-[10px] font-black text-white/40">Effacer</button>}</div>
               {history.length === 0 ? (
                 <p className="mt-3 rounded-xl bg-white/[0.025] px-3 py-4 text-center text-[10px] font-medium text-white/40">Les actions lancées depuis ce centre apparaîtront ici.</p>
@@ -653,12 +659,12 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
               <p className="mt-1 text-[11px] leading-relaxed text-white/45">Approchez l’iPhone d’un tag placé dans la cuisine, le portefeuille ou près de l’entrée.</p>
             </div>
 
-            <div className="rounded-[22px] border border-white/8 bg-white/[0.035] p-4">
+            <div className="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
               <ol className="space-y-3">
                 {NFC_STEPS.map((step, index) => (
                   <li key={step} className="flex gap-3 text-[11px] font-medium leading-relaxed text-white/60">
                     <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#6C5CFF]/15 text-[10px] font-black text-[#9E94FF]">{index + 1}</span>
-                    <span>{step}</span>
+                    <InstructionText text={step} />
                   </li>
                 ))}
               </ol>
@@ -705,7 +711,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
 
             {!isNativeApp && <p className="rounded-xl border border-white/8 bg-white/[0.025] px-3 py-2.5 text-[10px] leading-relaxed text-white/45">Les codes QR se génèrent directement dans l’application iPhone. Ici, copiez le lien puis utilisez-le dans Raccourcis.</p>}
 
-            <div className="flex gap-3 rounded-[22px] border border-[#00D26A]/18 bg-[#00D26A]/7 p-4">
+            <div className="flex gap-3 rounded-2xl border border-[#00D26A]/18 bg-[#00D26A]/7 p-4">
               <Nfc className="mt-0.5 h-5 w-5 shrink-0 text-[#00D26A]" />
               <p className="text-[11px] font-medium leading-relaxed text-white/55">Le tag contient uniquement un lien d’ouverture. Il ne contient ni compte, ni dépense, ni donnée familiale.</p>
             </div>
@@ -715,7 +721,7 @@ export const ShortcutCenter: React.FC<ShortcutCenterProps> = ({
 
       {qrAction && (
         <div className="fixed inset-0 z-[10030] flex items-center justify-center bg-[#020713]/78 p-5 backdrop-blur-md">
-          <div className="w-full max-w-xs rounded-[28px] border border-white/12 bg-[#101827] p-5 text-center shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
+          <div className="w-full max-w-xs rounded-2xl border border-white/12 bg-[#101827] p-5 text-center shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
             <h3 className="text-base font-black text-white">Code QR NFC</h3>
             <p className="mt-1 text-[11px] text-white/48">{QUICK_ACTION_GUIDES.find((item) => item.id === qrAction)?.label}</p>
             <div className="mt-4 grid min-h-52 place-items-center rounded-2xl bg-white p-4">

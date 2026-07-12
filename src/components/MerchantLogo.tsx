@@ -12,7 +12,9 @@ const LOCAL_MERCHANT_LOGOS = new Set([
   'carrefour', 'leclerc', 'auchan', 'auchan-senegal', 'intermarche', 'lidl', 'aldi', 'monoprix',
   'mcdonalds', 'burger-king', 'kfc', 'starbucks', 'amazon', 'fnac', 'ikea', 'decathlon', 'sncf',
   'uber', 'bolt', 'totalenergies', 'esso', 'orange', 'orange-money', 'free', 'free-money', 'sfr', 'netflix',
-  'spotify', 'apple', 'franprix', 'picard', 'leroy-merlin', 'glovo', 'wave', 'jumia', 'air-senegal'
+  'spotify', 'apple', 'franprix', 'picard', 'leroy-merlin', 'glovo', 'wave', 'jumia', 'air-senegal',
+  'ratp', 'edk', 'exclusive', 'yassir', 'super-u', 'casino', 'cora', 'action', 'darty', 'boulanger',
+  'deliveroo', 'uber-eats', 'shell', 'bp', 'air-france', 'canal-plus'
 ]);
 
 const merchantLogoPath = (brandId: string): string | null => {

@@ -58,6 +58,18 @@ const MERCHANT_BRANDS: MerchantBrand[] = [
   ,{ id: 'yassir', name: 'Yassir', aliases: ['yassir ride', 'yassir senegal', 'yassir france'], shortLabel: 'Y', foreground: '#FFFFFF', background: '#6C3BFF', category: 'Transport', subCategory: 'Taxi' }
   ,{ id: 'jumia', name: 'Jumia', aliases: ['jumia senegal', 'jumia pay', 'jumia food'], shortLabel: 'J', foreground: '#FFFFFF', background: '#F68B1E', category: 'Autres', subCategory: 'Divers' }
   ,{ id: 'air-senegal', name: 'Air Sénégal', aliases: ['air senegal', 'airsenegal'], shortLabel: 'AS', foreground: '#FFFFFF', background: '#00853F', category: 'Voyages', subCategory: 'Billets' }
+  ,{ id: 'super-u', name: 'Super U', aliases: ['super u', 'hyper u', 'u express', 'utile'], shortLabel: 'U', foreground: '#FFFFFF', background: '#0050A4', category: 'Alimentation', subCategory: 'Supermarché' }
+  ,{ id: 'casino', name: 'Casino', aliases: ['casino supermarche', 'geant casino', 'petit casino', 'spar casino'], shortLabel: 'C', foreground: '#FFFFFF', background: '#D71920', category: 'Alimentation', subCategory: 'Supermarché' }
+  ,{ id: 'cora', name: 'Cora', aliases: ['cora hypermarche', 'cora france'], shortLabel: 'C', foreground: '#E30613', background: '#FFFFFF', category: 'Alimentation', subCategory: 'Supermarché' }
+  ,{ id: 'action', name: 'Action', aliases: ['action france', 'action magasin'], shortLabel: 'A', foreground: '#FFFFFF', background: '#005AA9', category: 'Autres', subCategory: 'Divers' }
+  ,{ id: 'darty', name: 'Darty', aliases: ['darty france', 'darty com'], shortLabel: 'D', foreground: '#FFFFFF', background: '#E30613', category: 'Logement', subCategory: 'Équipement' }
+  ,{ id: 'boulanger', name: 'Boulanger', aliases: ['boulanger france', 'boulanger com'], shortLabel: 'B', foreground: '#FFFFFF', background: '#F36F21', category: 'Logement', subCategory: 'Équipement' }
+  ,{ id: 'deliveroo', name: 'Deliveroo', aliases: ['deliveroo france', 'deliveroo'], shortLabel: 'D', foreground: '#FFFFFF', background: '#00CCBC', category: 'Alimentation', subCategory: 'Restaurant' }
+  ,{ id: 'uber-eats', name: 'Uber Eats', aliases: ['uber eats', 'ubereats'], shortLabel: 'UE', foreground: '#FFFFFF', background: '#06C167', category: 'Alimentation', subCategory: 'Restaurant' }
+  ,{ id: 'shell', name: 'Shell', aliases: ['shell station', 'shell france'], shortLabel: 'S', foreground: '#D71920', background: '#FFD500', category: 'Transport', subCategory: 'Essence' }
+  ,{ id: 'bp', name: 'BP', aliases: ['bp station', 'bp france'], shortLabel: 'BP', foreground: '#FFFFFF', background: '#009B3A', category: 'Transport', subCategory: 'Essence' }
+  ,{ id: 'air-france', name: 'Air France', aliases: ['air france', 'airfrance'], shortLabel: 'AF', foreground: '#FFFFFF', background: '#002157', category: 'Voyages', subCategory: 'Billets' }
+  ,{ id: 'canal-plus', name: 'Canal+', aliases: ['canal plus', 'canalplus', 'mycanal'], shortLabel: 'C+', foreground: '#FFFFFF', background: '#111111', category: 'Abonnements', subCategory: 'Streaming' }
 ];
 
 const levenshteinDistance = (left: string, right: string): number => {
