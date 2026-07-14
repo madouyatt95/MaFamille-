@@ -22,6 +22,7 @@ import {
   PREMIUM_YEARLY_SAVE
 } from '../utils/premiumPricing';
 import { appStoreBillingService, type AppStoreProduct } from '../services/appStoreBillingService';
+import { openLegalPage } from '../services/externalLinkService';
 
 interface PaywallProps {
   isOpen: boolean;
@@ -427,8 +428,8 @@ export const Paywall: React.FC<PaywallProps> = ({
             {!isWeb && <><span aria-hidden="true">•</span><span>Facturation Apple</span></>}
           </div>
           <div className="mt-2 flex justify-center gap-4 text-[9px] font-bold text-white/35">
-            <a href="/legal/terms.html" target="_blank" rel="noreferrer" className="hover:text-white/60">Conditions</a>
-            <a href="/legal/privacy.html" target="_blank" rel="noreferrer" className="hover:text-white/60">Confidentialité</a>
+            <button type="button" onClick={() => void openLegalPage('/legal/terms.html')} className="hover:text-white/60">Conditions (EULA)</button>
+            <button type="button" onClick={() => void openLegalPage('/legal/privacy.html')} className="hover:text-white/60">Confidentialité</button>
           </div>
         </footer>
       </section>

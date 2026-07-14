@@ -56,6 +56,7 @@ import { AppDiagnosticsPanel } from '../components/AppDiagnosticsPanel';
 import { QUICK_ACTION_GUIDES } from '../constants/quickActionGuides';
 import type { QuickActionId } from '../utils/quickActionPreferences';
 import { createLocalBackup, downloadLocalBackup, restoreLocalBackup } from '../utils/localBackup';
+import { openExternalUrl, openLegalPage } from '../services/externalLinkService';
 
 type NotificationPrefs = Record<string, boolean>;
 
@@ -1986,33 +1987,30 @@ export const Settings: React.FC<SettingsProps> = ({
             </div>
           </details>
 
-          <a
-            href="/legal/privacy.html"
-            target="_blank"
-            rel="noreferrer"
+          <button
+            type="button"
+            onClick={() => void openLegalPage('/legal/privacy.html')}
             className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/3 p-4 text-xs font-bold text-white hover:bg-white/5"
           >
             <span>Politique de confidentialité complète</span>
             <ExternalLink className="h-4 w-4 text-white/35" />
-          </a>
-          <a
-            href="/legal/terms.html"
-            target="_blank"
-            rel="noreferrer"
+          </button>
+          <button
+            type="button"
+            onClick={() => void openLegalPage('/legal/terms.html')}
             className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/3 p-4 text-xs font-bold text-white hover:bg-white/5"
           >
             <span>Conditions d’utilisation</span>
             <ExternalLink className="h-4 w-4 text-white/35" />
-          </a>
-          <a
-            href="/legal/account-deletion.html"
-            target="_blank"
-            rel="noreferrer"
+          </button>
+          <button
+            type="button"
+            onClick={() => void openLegalPage('/legal/account-deletion.html')}
             className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/3 p-4 text-xs font-bold text-white hover:bg-white/5"
           >
             <span>Informations sur la suppression du compte</span>
             <ExternalLink className="h-4 w-4 text-white/35" />
-          </a>
+          </button>
         </div>
       </div>
       )}
@@ -2044,10 +2042,10 @@ export const Settings: React.FC<SettingsProps> = ({
               <p>Votre compte de connexion et vos données personnelles seront supprimés.</p>
               <p>Si un autre adulte administre le foyer, sa responsabilité lui sera transférée. Sinon, le foyer et ses données seront supprimés.</p>
               <p>Un abonnement App Store reste géré par Apple. Annulez-le avant de continuer.</p>
-              <a href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-bold text-[#9E94FF]">
+              <button type="button" onClick={() => void openExternalUrl('https://apps.apple.com/account/subscriptions')} className="inline-flex items-center gap-1.5 font-bold text-[#9E94FF]">
                 Gérer mes abonnements Apple
                 <ExternalLink className="h-3.5 w-3.5" />
-              </a>
+              </button>
             </div>
 
             <label className="mt-5 block text-[10px] font-black uppercase tracking-wider text-white/45">

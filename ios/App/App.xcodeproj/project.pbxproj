@@ -27,6 +27,7 @@
 		9A10000F2FC900000000000F /* FamilyImagePickerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000102FC9000000000010 /* FamilyImagePickerPlugin.swift */; };
 		9A1000112FC9000000000011 /* FamilyQrPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000122FC9000000000012 /* FamilyQrPlugin.swift */; };
 		9A1000132FC9000000000013 /* MyFamilyWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000152FC9000000000015 /* MyFamilyWidgets.swift */; };
+		9A1000232FC9000000000023 /* ExternalLinkPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1000242FC9000000000024 /* ExternalLinkPlugin.swift */; };
 		9A1000142FC9000000000014 /* MyFamilyWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 9A1000182FC9000000000018 /* MyFamilyWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AB7FFF4424EF46F2AED6556D /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34BC79DA6B0C4D932FDEDBF4 /* Foundation.framework */; };
 		B85C8A3EE59A01458F8340CD /* MyFamilyShare.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = C1E295C2E467EE205BA044F8 /* MyFamilyShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -92,6 +93,7 @@
 		9A1000162FC9000000000016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		9A1000172FC9000000000017 /* MyFamilyWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyFamilyWidgets.entitlements; sourceTree = "<group>"; };
 		9A1000182FC9000000000018 /* MyFamilyWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MyFamilyWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		9A1000242FC9000000000024 /* ExternalLinkPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalLinkPlugin.swift; sourceTree = "<group>"; };
 		B1B80A1ACF5351F26C387E5E /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B6A561C7CC2BB430A4574808 /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		C1E295C2E467EE205BA044F8 /* MyFamilyShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MyFamilyShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -161,6 +163,7 @@
 				9A10000D2FC900000000000D /* SharedInboxPlugin.swift */,
 				9A1000102FC9000000000010 /* FamilyImagePickerPlugin.swift */,
 				9A1000122FC9000000000012 /* FamilyQrPlugin.swift */,
+				9A1000242FC9000000000024 /* ExternalLinkPlugin.swift */,
 				9A1000072FC9000000000007 /* MyFamilyPlus.storekit */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -360,6 +363,7 @@
 				9A10000C2FC900000000000C /* SharedInboxPlugin.swift in Sources */,
 				9A10000F2FC900000000000F /* FamilyImagePickerPlugin.swift in Sources */,
 				9A1000112FC9000000000011 /* FamilyQrPlugin.swift in Sources */,
+				9A1000232FC9000000000023 /* ExternalLinkPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -424,7 +428,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = MyFamilyShare/MyFamilyShare.entitlements;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEVELOPMENT_TEAM = 7384RARK23;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MyFamilyShare/Info.plist;
@@ -561,7 +565,7 @@
 				CODE_SIGN_ENTITLEMENTS = App/AppDebug.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEVELOPMENT_TEAM = 7384RARK23;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
@@ -589,7 +593,7 @@
 				CODE_SIGN_ENTITLEMENTS = App/AppRelease.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEVELOPMENT_TEAM = 7384RARK23;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
@@ -617,7 +621,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = MyFamilyShare/MyFamilyShare.entitlements;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEVELOPMENT_TEAM = 7384RARK23;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MyFamilyShare/Info.plist;
@@ -645,7 +649,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = MyFamilyWidgets/MyFamilyWidgets.entitlements;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEVELOPMENT_TEAM = 7384RARK23;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MyFamilyWidgets/Info.plist;
@@ -672,7 +676,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = MyFamilyWidgets/MyFamilyWidgets.entitlements;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEVELOPMENT_TEAM = 7384RARK23;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MyFamilyWidgets/Info.plist;

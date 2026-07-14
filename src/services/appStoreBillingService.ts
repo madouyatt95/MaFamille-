@@ -194,11 +194,11 @@ async function verifyOrQueue(
     clearPendingVerification(foyerId, transaction.transactionId);
     return subscription;
   } catch (error) {
-    if (!(error instanceof AppStoreVerificationError) || !error.retryable) throw error;
-
+    // StoreKit has already verified the signed transaction on-device. Cloud sync must
+    // never turn a completed Apple purchase into a blocking error for the customer.
     const subscription = snapshotFromVerifiedTransaction(transaction);
     queuePendingVerification(foyerId, transaction);
-    console.warn('[App Store] StoreKit verified the purchase; cloud sync will retry later.');
+    console.warn('[App Store] StoreKit verified the purchase; cloud sync will retry later.', error);
     return subscription;
   }
 }

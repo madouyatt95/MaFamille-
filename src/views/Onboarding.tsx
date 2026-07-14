@@ -15,6 +15,7 @@ import {
   Check
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
+import { openLegalPage } from '../services/externalLinkService';
 
 const AUTH_REDIRECT_URL = (
   import.meta.env.VITE_SITE_URL || 'https://myfamilyplus.fr'
@@ -451,7 +452,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
               <label className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/3 p-3 text-left">
                 <input type="checkbox" checked={legalAccepted} onChange={event => setLegalAccepted(event.target.checked)} aria-label="Accepter les conditions et la politique de confidentialité" className="mt-0.5 h-4 w-4 accent-[#6C5CFF]" />
                 <span className="text-[11px] leading-relaxed text-white/55">
-                  J’accepte les <a href="/legal/terms.html" target="_blank" rel="noreferrer" className="font-bold text-[#9E94FF] underline">conditions d’utilisation</a> et la <a href="/legal/privacy.html" target="_blank" rel="noreferrer" className="font-bold text-[#9E94FF] underline">politique de confidentialité</a>.
+                  J’accepte les <button type="button" onClick={() => void openLegalPage('/legal/terms.html')} className="font-bold text-[#9E94FF] underline">conditions d’utilisation</button> et la <button type="button" onClick={() => void openLegalPage('/legal/privacy.html')} className="font-bold text-[#9E94FF] underline">politique de confidentialité</button>.
                 </span>
               </label>
             )}
