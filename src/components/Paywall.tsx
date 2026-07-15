@@ -103,6 +103,7 @@ export const Paywall: React.FC<PaywallProps> = ({
   const [simulating, setSimulating] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [appStoreProducts, setAppStoreProducts] = useState<AppStoreProduct[]>([]);
   const [appStoreCatalogStatus, setAppStoreCatalogStatus] = useState<'idle' | 'loading' | 'ready' | 'unavailable'>('idle');
   const [appStoreCatalogReload, setAppStoreCatalogReload] = useState(0);
@@ -111,9 +112,8 @@ export const Paywall: React.FC<PaywallProps> = ({
   const platform = isWeb ? 'web' : 'ios';
   const monthlyAppStoreProduct = appStoreProducts.find(product => product.id === appStoreBillingService.productIds.monthly);
   const yearlyAppStoreProduct = appStoreProducts.find(product => product.id === appStoreBillingService.productIds.yearly);
-  const appStoreCatalogReady = isWeb || (!!monthlyAppStoreProduct && !!yearlyAppStoreProduct && appStoreCatalogStatus === 'ready');
-  const priceMonthly = monthlyAppStoreProduct?.price || (isWeb ? PREMIUM_PRICING.web.monthly : '—');
-  const priceYearly = yearlyAppStoreProduct?.price || (isWeb ? PREMIUM_PRICING.web.yearly : '—');
+  const priceMonthly = monthlyAppStoreProduct?.price || PREMIUM_PRICING[platform].monthly;
+  const priceYearly = yearlyAppStoreProduct?.price || PREMIUM_PRICING[platform].yearly;
   const dynamicMonthlyEquivalent = yearlyAppStoreProduct?.priceAmount && yearlyAppStoreProduct.currencyCode
     ? new Intl.NumberFormat(undefined, {
         style: 'currency',
@@ -131,7 +131,9 @@ export const Paywall: React.FC<PaywallProps> = ({
   const selectedPrice = selectedPlan === 'monthly' ? priceMonthly : priceYearly;
   const selectedPeriod = selectedPlan === 'monthly' ? 'par mois' : 'par an';
   const canUseStripe = isWeb && !!foyerId && !!onStartStripeCheckout;
-  const canUseAppStore = !isWeb && appStoreCatalogReady && !!foyerId && !!onStartAppStorePurchase;
+  // Loading localized prices is helpful, but it must never disable StoreKit. The
+  // purchase call performs its own product lookup and can recover from a slow catalog.
+  const canUseAppStore = !isWeb && !!foyerId && !!onStartAppStorePurchase;
   const testModeEnabled = import.meta.env.DEV && import.meta.env.VITE_ENABLE_PREMIUM_TEST_MODE === 'true';
   const canPurchase = canUseStripe || canUseAppStore || testModeEnabled;
 
@@ -198,24 +200,37 @@ export const Paywall: React.FC<PaywallProps> = ({
     }, 900);
   };
 
-  const handleRealPurchase = async () => {
+  const handleRealPurchase = async (plan: 'monthly' | 'yearly' = selectedPlan) => {
+    if (checkoutLoading || restoreLoading || simulating) return;
     try {
+      setPurchaseError(null);
       setCheckoutLoading(true);
       if (canUseStripe && onStartStripeCheckout) {
-        await onStartStripeCheckout({ plan: selectedPlan });
+        await onStartStripeCheckout({ plan });
         return;
       }
       if (canUseAppStore && onStartAppStorePurchase) {
-        await onStartAppStorePurchase({ plan: selectedPlan });
+        await onStartAppStorePurchase({ plan });
         onClose();
         return;
       }
+      throw new Error(isWeb
+        ? "Le paiement Premium n'est pas disponible pour ce foyer."
+        : "L'achat App Store n'est pas disponible pour ce foyer.");
     } catch (error) {
       console.error('[Paywall] Premium checkout failed:', error);
-      alert(error instanceof Error ? error.message : 'Impossible de démarrer le paiement Premium.');
+      const message = error instanceof Error ? error.message : 'Impossible de démarrer le paiement Premium.';
+      setPurchaseError(message);
+      alert(message);
     } finally {
       setCheckoutLoading(false);
     }
+  };
+
+  const handlePlanAction = (plan: 'monthly' | 'yearly') => {
+    setSelectedPlan(plan);
+    setPurchaseError(null);
+    if (!isWeb) void handleRealPurchase(plan);
   };
 
   const handleRestorePurchase = async () => {
@@ -234,7 +249,7 @@ export const Paywall: React.FC<PaywallProps> = ({
 
   const handlePrimaryAction = testModeEnabled && !canUseStripe && !canUseAppStore
     ? handlePurchaseSimulate
-    : handleRealPurchase;
+    : () => void handleRealPurchase(selectedPlan);
 
   return (
     <div className="premium-paywall fixed inset-0 z-[100] flex items-end justify-center bg-[#020712]/82 backdrop-blur-md sm:items-center sm:p-5 animate-fade-in">
@@ -308,12 +323,14 @@ export const Paywall: React.FC<PaywallProps> = ({
                   type="button"
                   role="radio"
                   aria-checked={selectedPlan === 'monthly'}
-                  onClick={() => setSelectedPlan('monthly')}
+                  onClick={() => handlePlanAction('monthly')}
+                  disabled={checkoutLoading || restoreLoading || simulating}
                   className={`premium-paywall__plan relative min-h-[118px] rounded-2xl border p-4 text-left transition ${selectedPlan === 'monthly' ? 'is-selected' : ''}`}
                 >
                   <span className="block text-[10px] font-black uppercase text-white/42">Mensuel</span>
                   <strong className="mt-2 block text-xl font-black text-white">{priceMonthly}</strong>
                   <span className="mt-1 block text-[11px] font-semibold text-white/48">par mois · sans engagement</span>
+                  {!isWeb && <span className="mt-2 block text-[9px] font-black uppercase text-[#9E94FF]">Continuer</span>}
                   <span className="premium-paywall__radio-dot absolute right-4 top-4 h-4 w-4 rounded-full border border-white/20" />
                 </button>
 
@@ -321,7 +338,8 @@ export const Paywall: React.FC<PaywallProps> = ({
                   type="button"
                   role="radio"
                   aria-checked={selectedPlan === 'yearly'}
-                  onClick={() => setSelectedPlan('yearly')}
+                  onClick={() => handlePlanAction('yearly')}
+                  disabled={checkoutLoading || restoreLoading || simulating}
                   className={`premium-paywall__plan relative min-h-[118px] rounded-2xl border p-4 text-left transition ${selectedPlan === 'yearly' ? 'is-selected' : ''}`}
                 >
                   <span className="absolute right-3 top-3 rounded-full bg-[#00D26A]/14 px-2 py-1 text-[9px] font-black text-[#00D26A]">
@@ -330,6 +348,7 @@ export const Paywall: React.FC<PaywallProps> = ({
                   <span className="block text-[10px] font-black uppercase text-white/42">Annuel</span>
                   <strong className="mt-2 block text-xl font-black text-white">{priceYearly}</strong>
                   <span className="mt-1 block text-[11px] font-semibold text-[#68E6A0]">soit {priceMonthlyEquivalent} / mois</span>
+                  {!isWeb && <span className="mt-2 block text-[9px] font-black uppercase text-[#9E94FF]">Continuer</span>}
                   <span className="premium-paywall__radio-dot absolute bottom-4 right-4 h-4 w-4 rounded-full border border-white/20" />
                 </button>
               </div>
@@ -347,6 +366,11 @@ export const Paywall: React.FC<PaywallProps> = ({
                     Réessayer
                   </button>
                 </div>
+              )}
+              {purchaseError && (
+                <p role="alert" className="mt-3 rounded-2xl border border-[#FF4D6D]/25 bg-[#FF4D6D]/8 px-4 py-3 text-[11px] font-semibold leading-relaxed text-white/70">
+                  {purchaseError}
+                </p>
               )}
             </section>
 

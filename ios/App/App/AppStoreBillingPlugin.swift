@@ -11,6 +11,7 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "purchase", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "restore", returnType: CAPPluginReturnPromise)
     ]
+    private var cachedProducts: [String: Product] = [:]
 
     @objc func getProducts(_ call: CAPPluginCall) {
         let productIds = call.getArray("productIds", String.self) ?? []
@@ -19,9 +20,10 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        Task {
+        Task { @MainActor in
             do {
                 let products = try await Product.products(for: productIds)
+                products.forEach { cachedProducts[$0.id] = $0 }
                 #if DEBUG
                 if products.isEmpty && allowsLocalStoreKitFallback {
                     call.resolve([
@@ -50,9 +52,16 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        Task {
+        Task { @MainActor in
             do {
-                guard let product = try await Product.products(for: [productId]).first else {
+                var product = cachedProducts[productId]
+                if product == nil {
+                    product = try await Product.products(for: [productId]).first
+                    if let product {
+                        cachedProducts[product.id] = product
+                    }
+                }
+                guard let product else {
                     #if DEBUG
                     guard allowsLocalStoreKitFallback, debugProduct(for: productId) != nil else {
                         call.reject("Produit App Store introuvable.")
@@ -85,7 +94,7 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
                     call.reject("Réponse App Store inconnue.")
                 }
             } catch {
-                call.reject("Impossible de finaliser l'achat App Store.", nil, error)
+                call.reject("Impossible de finaliser l'achat App Store : \(error.localizedDescription)", nil, error)
             }
         }
     }
@@ -93,7 +102,7 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func restore(_ call: CAPPluginCall) {
         let productIds = call.getArray("productIds", String.self) ?? []
 
-        Task {
+        Task { @MainActor in
             do {
                 try await AppStore.sync()
                 for await entitlement in Transaction.currentEntitlements {
