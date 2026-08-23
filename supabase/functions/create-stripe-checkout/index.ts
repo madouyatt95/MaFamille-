@@ -135,9 +135,6 @@ serve(async (req) => {
     params.set("subscription_data[metadata][user_id]", userData.user.id);
     params.set("subscription_data[metadata][plan]", plan);
     params.set("subscription_data[metadata][platform]", "web");
-    params.set("subscription_data[trial_period_days]", "7");
-    params.set("subscription_data[trial_settings][end_behavior][missing_payment_method]", "cancel");
-
     const session = await stripeRequest<{ id: string; url: string }>("checkout/sessions", params);
     return jsonResponse({ sessionId: session.id, url: session.url });
   } catch (error) {

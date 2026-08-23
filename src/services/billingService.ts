@@ -17,13 +17,12 @@ export type PremiumSubscriptionSnapshot = {
 
 export const billingService = {
   createTestSubscription(platform: PremiumPlatform, plan: PremiumPlan): PremiumSubscriptionSnapshot {
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     return {
       isPremium: true,
       source: 'test',
       plan,
-      status: 'trialing',
-      expiresAt,
+      status: 'active',
+      expiresAt: null,
       platform
     };
   },
@@ -36,7 +35,7 @@ export const billingService = {
 
   getStatusLabel(foyer?: Foyer | null): string {
     if (!foyer?.isPremium) return 'Gratuit';
-    if (foyer.premiumStatus === 'trialing') return 'Essai Premium';
+    if (foyer.premiumStatus === 'trialing') return 'Premium';
     if (foyer.premiumSource === 'test') return 'Premium test';
     if (foyer.premiumSource === 'stripe') return 'Premium Stripe';
     if (foyer.premiumSource === 'appstore') return 'Premium App Store';
