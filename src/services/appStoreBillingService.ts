@@ -143,8 +143,8 @@ async function verifyWithSupabase(
       isPremium: true,
       source: 'test',
       plan: planFromProductId(transaction.productId),
-      status: 'trialing',
-      expiresAt: transaction.expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      status: 'active',
+      expiresAt: transaction.expiresAt || null,
       platform: 'ios',
       appStoreOriginalTransactionId: transaction.originalTransactionId || null
     };

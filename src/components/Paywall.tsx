@@ -39,8 +39,6 @@ interface PaywallProps {
     platform: 'web' | 'ios';
     plan: 'monthly' | 'yearly';
     source: 'test';
-    status: 'trialing';
-    expiresAt: string;
   }) => void;
 }
 
@@ -188,13 +186,10 @@ export const Paywall: React.FC<PaywallProps> = ({
     setSimulating(true);
     setTimeout(() => {
       setSimulating(false);
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       onUnlockPremium({
         platform,
         plan: selectedPlan,
-        source: 'test',
-        status: 'trialing',
-        expiresAt: expiresAt.toISOString()
+        source: 'test'
       });
       onClose();
     }, 900);
@@ -286,21 +281,21 @@ export const Paywall: React.FC<PaywallProps> = ({
                 Toute votre famille,<br className="hidden sm:block" /> sans les limites.
               </h2>
               <p className="mt-3 max-w-xl text-sm font-medium leading-relaxed text-white/58">
-                Débloquez les outils intelligents, les jeux complets et toute l’organisation avancée du foyer pendant 7 jours.
+                Débloquez immédiatement les outils intelligents, les jeux complets et toute l’organisation avancée du foyer.
               </p>
 
-              <div className="premium-paywall__trial mt-5 grid grid-cols-3 overflow-hidden rounded-2xl border border-white/10 bg-black/18">
+              <div className="premium-paywall__terms mt-5 grid grid-cols-3 overflow-hidden rounded-2xl border border-white/10 bg-black/18">
                 <div className="p-3 sm:p-4">
-                  <span className="block text-[9px] font-black uppercase text-white/38">Aujourd’hui</span>
-                  <strong className="mt-1 block text-sm text-white">0 €</strong>
+                  <span className="block text-[9px] font-black uppercase text-white/38">Activation</span>
+                  <strong className="mt-1 block text-sm text-white">Immédiate</strong>
                 </div>
                 <div className="border-x border-white/8 p-3 sm:p-4">
-                  <span className="block text-[9px] font-black uppercase text-white/38">Pendant 7 jours</span>
-                  <strong className="mt-1 block text-sm text-white">Tout Premium</strong>
+                  <span className="block text-[9px] font-black uppercase text-white/38">Votre formule</span>
+                  <strong className="mt-1 block text-sm text-white">{selectedPrice}</strong>
                 </div>
                 <div className="p-3 sm:p-4">
-                  <span className="block text-[9px] font-black uppercase text-white/38">Ensuite</span>
-                  <strong className="mt-1 block text-sm text-white">{selectedPrice}</strong>
+                  <span className="block text-[9px] font-black uppercase text-white/38">Gestion</span>
+                  <strong className="mt-1 block text-sm text-white">Sans engagement</strong>
                 </div>
               </div>
             </div>
@@ -421,11 +416,11 @@ export const Paywall: React.FC<PaywallProps> = ({
             className="premium-paywall__cta flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#6C5CFF] px-4 text-sm font-black text-white shadow-[0_12px_30px_rgba(108,92,255,0.3)] transition hover:bg-[#5B4EFA] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-55"
           >
             {checkoutLoading || simulating ? (
-              <><RefreshCw className="h-4 w-4 animate-spin" /> Préparation de votre essai...</>
+              <><RefreshCw className="h-4 w-4 animate-spin" /> Préparation du paiement...</>
             ) : !isWeb && appStoreCatalogStatus === 'loading' ? (
               <><RefreshCw className="h-4 w-4 animate-spin" /> Connexion à l’App Store...</>
             ) : canPurchase ? (
-              <>{isWeb ? 'Essayer Premium gratuitement' : 'Continuer avec l’App Store'} <ChevronRight className="h-4 w-4" /></>
+              <>{isWeb ? 'S’abonner avec Stripe' : 'Continuer avec l’App Store'} <ChevronRight className="h-4 w-4" /></>
             ) : (
               <><LockKeyhole className="h-4 w-4" /> Abonnements indisponibles</>
             )}
@@ -443,9 +438,7 @@ export const Paywall: React.FC<PaywallProps> = ({
           )}
 
           <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-[9px] font-semibold text-white/38">
-            <span>7 jours gratuits</span>
-            <span aria-hidden="true">•</span>
-            <span>Puis {selectedPrice} {selectedPeriod}</span>
+            <span>{selectedPrice} {selectedPeriod}</span>
             <span aria-hidden="true">•</span>
             <span>Annulable à tout moment</span>
             {isWeb && selectedPlan === 'monthly' && <><span aria-hidden="true">•</span><span className="inline-flex items-center gap-1"><CreditCard className="h-3 w-3" /> Codes promotionnels acceptés</span></>}

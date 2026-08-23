@@ -854,9 +854,9 @@ html,
   border-color: var(--paywall-border) !important;
 }
 
-.theme-light .premium-paywall__trial,
+.theme-light .premium-paywall__terms,
 .theme-light .premium-paywall__comparison,
-.theme-sepia .premium-paywall__trial,
+.theme-sepia .premium-paywall__terms,
 .theme-sepia .premium-paywall__comparison {
   background: var(--paywall-soft) !important;
 }

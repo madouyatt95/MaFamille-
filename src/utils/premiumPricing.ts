@@ -23,7 +23,7 @@ export const PREMIUM_PRICING: Record<PremiumPlatform, Record<PremiumPlan, string
     yearly: '29,99 €'
   },
   ios: {
-    monthly: '5,99 €',
+    monthly: '4,99 €',
     yearly: '39,99 €'
   }
 };
@@ -35,7 +35,7 @@ export const PREMIUM_MONTHLY_EQUIVALENT: Record<PremiumPlatform, string> = {
 
 export const PREMIUM_YEARLY_SAVE: Record<PremiumPlatform, string> = {
   web: '-37%',
-  ios: '-44%'
+  ios: '-33%'
 };
 
 export function getPremiumPlanLabel(platform: PremiumPlatform, plan: PremiumPlan): string {

@@ -163,16 +163,16 @@ public class AppStoreBillingPlugin: CAPPlugin, CAPBridgedPlugin {
             return [
                 "id": productId,
                 "title": "MyFamily+ Premium Mensuel",
-                "description": "Essai gratuit de 7 jours, puis abonnement mensuel.",
-                "price": "5,99 €",
-                "priceAmount": 5.99,
+                "description": "Abonnement Premium mensuel.",
+                "price": "4,99 €",
+                "priceAmount": 4.99,
                 "currencyCode": "EUR"
             ]
         case "fr.myfamilyplus.app.premium.yearly":
             return [
                 "id": productId,
                 "title": "MyFamily+ Premium Annuel",
-                "description": "Essai gratuit de 7 jours, puis abonnement annuel.",
+                "description": "Abonnement Premium annuel.",
                 "price": "39,99 €",
                 "priceAmount": 39.99,
                 "currencyCode": "EUR"

@@ -175,7 +175,7 @@ export const Settings: React.FC<SettingsProps> = ({
     : null;
   const premiumStatusLabel = (() => {
     if (!foyer?.isPremium) return 'Gratuit';
-    if (foyer.premiumStatus === 'trialing') return 'Essai Premium';
+    if (foyer.premiumStatus === 'trialing') return 'Premium';
     if (foyer.premiumStatus === 'past_due') return 'Paiement à vérifier';
     if (foyer.premiumStatus === 'canceled') return 'Abonnement annulé';
     if (foyer.premiumSource === 'stripe') return 'Premium Stripe';
@@ -191,7 +191,7 @@ export const Settings: React.FC<SettingsProps> = ({
         ? 'Forfait actif'
         : 'Aucun forfait';
   const premiumRenewalLabel = hasValidPremiumDate && premiumExpiresAt
-    ? `${foyer?.premiumStatus === 'trialing' ? "Essai jusqu'au" : 'Échéance'} ${premiumExpiresAt.toLocaleDateString('fr-FR')}`
+    ? `Échéance ${premiumExpiresAt.toLocaleDateString('fr-FR')}`
     : foyer?.isPremium
       ? 'Échéance gérée par le fournisseur'
       : 'Aucun abonnement actif';
