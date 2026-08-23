@@ -33,12 +33,18 @@ const getAuthErrorMessage = (error: unknown): string => {
 
 interface OnboardingProps {
   onSuccess: (foyerId: string, memberRole: string) => void;
-  onLogout: () => void;
-  userEmail: string;
+  onExplore: () => void;
+  initialMode?: 'login' | 'create';
+  invitationCode?: string;
 }
 
-export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
-  const [activeMode, setActiveMode] = useState<'login' | 'create' | 'forgot'>('login');
+export const Onboarding: React.FC<OnboardingProps> = ({
+  onSuccess,
+  onExplore,
+  initialMode = 'login',
+  invitationCode = ''
+}) => {
+  const [activeMode, setActiveMode] = useState<'login' | 'create' | 'forgot'>(initialMode);
   
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -203,9 +209,32 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
             MyFamily+
           </h1>
           <p className="text-sm text-white/60 max-w-sm mx-auto leading-relaxed">
-            Votre espace familial sécurisé pour organiser, partager et piloter le quotidien.
+            Organisez votre quotidien dès maintenant. Le compte devient nécessaire lorsque vous souhaitez créer ou rejoindre une famille, synchroniser vos données ou activer Premium.
           </p>
         </div>
+
+        {invitationCode && !pendingEmail && (
+          <div className="rounded-2xl border border-[#00D26A]/25 bg-[#00D26A]/10 px-4 py-3 text-left">
+            <p className="text-sm font-black text-white">Invitation familiale détectée</p>
+            <p className="mt-1 text-xs leading-relaxed text-white/60">
+              Connectez-vous ou créez votre compte. Le code {invitationCode} est déjà renseigné pour rejoindre la famille.
+            </p>
+          </div>
+        )}
+
+        {!pendingEmail && activeMode !== 'forgot' && (
+          <button
+            type="button"
+            onClick={onExplore}
+            className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl bg-white px-5 text-sm font-black text-[#07111F] shadow-xl transition-transform active:scale-[0.99]"
+          >
+            <span className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-[#6C5CFF]" />
+              Continuer sans compte
+            </span>
+            <ArrowRight className="h-5 w-5" />
+          </button>
+        )}
 
         {pendingEmail ? (
           <div className="glass-panel border border-[#00D26A]/20 rounded-[32px] p-6 sm:p-8 space-y-5 shadow-2xl text-center">
@@ -523,6 +552,12 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onSuccess }) => {
           <span className="rounded-xl border border-white/5 bg-white/[0.03] py-2">Cloud sécurisé</span>
           <span className="rounded-xl border border-white/5 bg-white/[0.03] py-2">Famille privée</span>
         </div>
+
+        {!pendingEmail && (
+          <p className="px-4 text-center text-[11px] leading-relaxed text-white/38">
+            Sans compte, les données restent sur cet appareil. La synchronisation, le partage familial et Premium nécessitent un compte.
+          </p>
+        )}
 
       </div>
     </div>

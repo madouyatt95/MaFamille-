@@ -437,6 +437,23 @@ const cleanLabel = (lbl: string): string => {
   return s.trim();
 };
 
+const LOCAL_MEMBER_ID = 'local-profile';
+const createLocalMember = (): Member => ({
+  id: LOCAL_MEMBER_ID,
+  name: 'Moi',
+  role: 'Profil local',
+  age: '',
+  birthDate: '',
+  bloodGroup: '',
+  allergies: [],
+  treatments: [],
+  emergencyContact: { name: '', phone: '', relation: '' },
+  schoolOrEmployer: '',
+  photoUrl: '',
+  medicalHistory: [],
+  approved: true
+});
+
 
 function App() {
   // Safe localStorage helper functions to prevent corrupt cache startup crashes
@@ -2852,6 +2869,10 @@ function App() {
   };
 
   const [user, setUser] = useState<User | null>(null);
+  const [discoveryMode, setDiscoveryMode] = useState<boolean>(() => (
+    localStorage.getItem('mf_discover_mode') === 'true'
+  ));
+  const [authEntryMode, setAuthEntryMode] = useState<'login' | 'create'>('login');
 
   // Notification module preferences
   const [notificationPrefs, setNotificationPrefs] = useState(() => {
@@ -3396,7 +3417,7 @@ function App() {
       const currentUser = session?.user || null;
       setUser(currentUser);
       if (currentUser) {
-        
+        setDiscoveryMode(false);
         localStorage.removeItem('mf_discover_mode');
         localStorage.removeItem('mf_is_premium');
         checkUserFoyerSession(currentUser);
@@ -3409,7 +3430,7 @@ function App() {
       const currentUser = session?.user || null;
       setUser(currentUser);
       if (currentUser) {
-        
+        setDiscoveryMode(false);
         localStorage.removeItem('mf_discover_mode');
         localStorage.removeItem('mf_is_premium');
         if (
@@ -3472,6 +3493,42 @@ function App() {
         checkUserFoyerSession(session.user);
       }
     }
+  };
+
+  const handleEnterDiscoveryMode = () => {
+    const localMember = members.find(member => member.id === LOCAL_MEMBER_ID) || createLocalMember();
+    if (members.length === 0) setMembers([localMember]);
+    setActiveMemberId(members[0]?.id || localMember.id);
+    setFoyer(null);
+    setMyMemberProfile(null);
+    setMyFoyers([]);
+    setIsPremium(false);
+    setOnboardingActive(false);
+    setShowWelcomeScreen(false);
+    setShowRequestInterceptor(false);
+    setPaywallOpen(false);
+    setQuickActionsOpen(false);
+    setActiveTab('accueil');
+    rawSetActiveModule('');
+    localStorage.setItem('mf_discover_mode', 'true');
+    localStorage.removeItem('mf_cloud_foyer_id');
+    localStorage.removeItem('mf_active_foyer_id');
+    setDiscoveryMode(true);
+  };
+
+  const handleOpenAuthentication = (mode: 'login' | 'create' = 'login') => {
+    setAuthEntryMode(mode);
+    setPaywallOpen(false);
+    setDiscoveryMode(false);
+    localStorage.removeItem('mf_discover_mode');
+
+    if (user) {
+      setOnboardingActive(false);
+      void checkUserFoyerSession(user);
+      return;
+    }
+
+    setOnboardingActive(true);
   };
 
   // 1. Fetch & Hydrate all tables for active foyer
@@ -13175,7 +13232,7 @@ function App() {
       );
     }
 
-    if (!foyer) {
+    if (!foyer && !discoveryMode) {
       return (
         <div className="min-h-screen bg-[#07111F] text-white flex flex-col font-sans relative overflow-hidden">
           {/* Background decorative glows */}
@@ -14143,7 +14200,7 @@ function App() {
               activeMemberId={appActiveMemberId}
               setActiveTab={setActiveTab}
               setActiveModule={setActiveModule}
-              onOpenOnboarding={isNativeApp ? undefined : () => setOnboardingActive(true)}
+              onOpenOnboarding={isNativeApp ? undefined : () => handleOpenAuthentication('login')}
               onNotificationPrefsChange={(prefs) => {
                 setNotificationPrefs(prefs);
                 const key = `mf_notif_prefs_${appFoyer?.id || 'simulated'}_${user?.id || 'guest'}`;
@@ -14458,15 +14515,17 @@ function App() {
     );
   }
 
-  const shouldShowOnboarding = !user || (!isNativeApp && onboardingActive);
+  const shouldShowOnboarding = !discoveryMode && (!user || (!isNativeApp && onboardingActive));
 
   if (shouldShowOnboarding) {
     return (
       <Suspense fallback={<AppLoadingFallback />}>
         <Onboarding 
+          key={`${authEntryMode}-${welcomeInviteCode || 'standard'}`}
           onSuccess={handleOnboardingSuccess} 
-          onLogout={handleLogout} 
-          userEmail={user?.email || ''} 
+          onExplore={handleEnterDiscoveryMode}
+          initialMode={authEntryMode}
+          invitationCode={welcomeInviteCode}
         />
       </Suspense>
     );
@@ -14622,7 +14681,13 @@ function App() {
   const activeMemberObj = appMembers.find(m => m.id === appActiveMemberId);
   const isKidMode = activeMemberObj && activeMemberObj.age && parseInt(activeMemberObj.age) < 11;
 
-  const forceOnboarding = Boolean(user && !isInitializingAuth && !isSessionChecking && myFoyers.length === 0);
+  const forceOnboarding = Boolean(
+    user
+    && !isInitializingAuth
+    && !isSessionChecking
+    && myFoyers.length === 0
+    && !discoveryMode
+  );
 
   if (forceOnboarding) {
     return (
@@ -14828,11 +14893,9 @@ function App() {
         activeMemberId={appActiveMemberId}
         user={user}
         onLogout={handleLogout}
-        onOpenOnboarding={isNativeApp ? undefined : () => {
-          setOnboardingActive(true);
-        }}
-        activeFamilyName={appFoyer?.name}
-        onOpenSpaceSelector={() => setSpaceSelectorOpen(true)}
+        onOpenOnboarding={() => handleOpenAuthentication('login')}
+        activeFamilyName={appFoyer?.name || 'Mon espace local'}
+        onOpenSpaceSelector={user ? () => setSpaceSelectorOpen(true) : undefined}
       />
 
       {/* Universal Space Selector Modal */}
@@ -15085,6 +15148,7 @@ function App() {
         isOpen={paywallOpen}
         onClose={() => setPaywallOpen(false)}
         foyerId={foyer?.id || null}
+        onRequireAccount={() => handleOpenAuthentication('create')}
         onStartStripeCheckout={async ({ plan }) => {
           if (!foyer?.id) {
             throw new Error("Aucun foyer actif n'est chargé.");

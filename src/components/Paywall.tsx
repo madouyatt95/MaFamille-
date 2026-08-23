@@ -35,6 +35,7 @@ interface PaywallProps {
     plan: 'monthly' | 'yearly';
   }) => Promise<void>;
   onRestoreAppStorePurchase?: () => Promise<void>;
+  onRequireAccount?: () => void;
   onUnlockPremium: (options: {
     platform: 'web' | 'ios';
     plan: 'monthly' | 'yearly';
@@ -95,6 +96,7 @@ export const Paywall: React.FC<PaywallProps> = ({
   onStartStripeCheckout,
   onStartAppStorePurchase,
   onRestoreAppStorePurchase,
+  onRequireAccount,
   onUnlockPremium
 }) => {
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
@@ -132,6 +134,7 @@ export const Paywall: React.FC<PaywallProps> = ({
   // Loading localized prices is helpful, but it must never disable StoreKit. The
   // purchase call performs its own product lookup and can recover from a slow catalog.
   const canUseAppStore = !isWeb && !!foyerId && !!onStartAppStorePurchase;
+  const requiresAccount = !foyerId && !!onRequireAccount;
   const testModeEnabled = import.meta.env.DEV && import.meta.env.VITE_ENABLE_PREMIUM_TEST_MODE === 'true';
   const canPurchase = canUseStripe || canUseAppStore || testModeEnabled;
 
@@ -197,6 +200,11 @@ export const Paywall: React.FC<PaywallProps> = ({
 
   const handleRealPurchase = async (plan: 'monthly' | 'yearly' = selectedPlan) => {
     if (checkoutLoading || restoreLoading || simulating) return;
+    if (requiresAccount && onRequireAccount) {
+      onClose();
+      onRequireAccount();
+      return;
+    }
     try {
       setPurchaseError(null);
       setCheckoutLoading(true);
@@ -242,9 +250,14 @@ export const Paywall: React.FC<PaywallProps> = ({
     }
   };
 
-  const handlePrimaryAction = testModeEnabled && !canUseStripe && !canUseAppStore
-    ? handlePurchaseSimulate
-    : () => void handleRealPurchase(selectedPlan);
+  const handlePrimaryAction = requiresAccount && onRequireAccount
+    ? () => {
+        onClose();
+        onRequireAccount();
+      }
+    : testModeEnabled && !canUseStripe && !canUseAppStore
+      ? handlePurchaseSimulate
+      : () => void handleRealPurchase(selectedPlan);
 
   return (
     <div className="premium-paywall fixed inset-0 z-[100] flex items-end justify-center bg-[#020712]/82 backdrop-blur-md sm:items-center sm:p-5 animate-fade-in">
@@ -412,13 +425,15 @@ export const Paywall: React.FC<PaywallProps> = ({
           <button
             type="button"
             onClick={handlePrimaryAction}
-            disabled={!canPurchase || checkoutLoading || restoreLoading || simulating}
+            disabled={(!canPurchase && !requiresAccount) || checkoutLoading || restoreLoading || simulating}
             className="premium-paywall__cta flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#6C5CFF] px-4 text-sm font-black text-white shadow-[0_12px_30px_rgba(108,92,255,0.3)] transition hover:bg-[#5B4EFA] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-55"
           >
             {checkoutLoading || simulating ? (
               <><RefreshCw className="h-4 w-4 animate-spin" /> Préparation du paiement...</>
             ) : !isWeb && appStoreCatalogStatus === 'loading' ? (
               <><RefreshCw className="h-4 w-4 animate-spin" /> Connexion à l’App Store...</>
+            ) : requiresAccount ? (
+              <>Créer un compte pour continuer <ChevronRight className="h-4 w-4" /></>
             ) : canPurchase ? (
               <>{isWeb ? 'S’abonner avec Stripe' : 'Continuer avec l’App Store'} <ChevronRight className="h-4 w-4" /></>
             ) : (
