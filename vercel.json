@@ -17,6 +17,14 @@
       "destination": "/index.html"
     },
     {
+      "source": "/decouvrir",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/decouvrir/",
+      "destination": "/index.html"
+    },
+    {
       "source": "/quick-micro",
       "destination": "/index.html"
     },
