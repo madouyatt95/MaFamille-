@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { VisualAuditGallery } from './dev/VisualAuditGallery';
 
 const App = lazy(() => import('./App'));
@@ -7,19 +8,6 @@ const AiLab = lazy(() => import('./dev/AiLab').then(module => ({ default: module
 
 const isMarketingRoute = () => window.location.pathname.replace(/\/+$/, '') === '/decouvrir';
 const isAiLabRoute = () => window.location.pathname.replace(/\/+$/, '') === '/ai-lab';
-
-const hasAiLabAccess = () => {
-  if (import.meta.env.DEV) return true;
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('access') === 'local-qwen') {
-    sessionStorage.setItem('mf_ai_lab_access', 'true');
-    params.delete('access');
-    const query = params.toString();
-    window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
-    return true;
-  }
-  return sessionStorage.getItem('mf_ai_lab_access') === 'true';
-};
 
 export function Root() {
   if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('visual-audit') === '1') {
@@ -32,7 +20,7 @@ export function Root() {
       </Suspense>
     );
   }
-  if (isAiLabRoute() && hasAiLabAccess()) {
+  if (isAiLabRoute() && !Capacitor.isNativePlatform()) {
     return (
       <Suspense fallback={<div className="min-h-screen bg-[#07111F]" />}>
         <AiLab />

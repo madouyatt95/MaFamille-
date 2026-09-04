@@ -2,7 +2,10 @@
 
 ## Limite volontaire
 
-Route locale : `/ai-lab?access=local-qwen`, onglet **Assistant familial**.
+Accès PWA : **Réglages > Laboratoire vocal**, ou `/ai-lab` directement,
+onglet **Assistant familial**. Aucun code d'accès n'est nécessaire. Le lien et
+la route du laboratoire sont désactivés dans l'application native Capacitor.
+Le bouton de retour ouvre `/app`, même depuis un lien direct sans historique.
 Le contexte initial est vide. Le bouton de scénario fictif charge des exemples
 explicitement étiquetés. Aucun foyer réel, historique Supabase ou profil connecté
 n'est chargé. Le JSON importé reste dans la mémoire de la page ; l'export est

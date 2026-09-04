@@ -206,22 +206,21 @@ export function AiLab() {
     <main className="min-h-screen bg-family-bg text-family-text">
       <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 lg:py-8">
         <header className="flex flex-wrap items-center gap-3 border-b border-family-border pb-5">
-          <button
-            type="button"
-            onClick={() => window.history.back()}
+          <a
+            href="/app"
             className="grid h-10 w-10 place-items-center rounded-lg border border-family-border bg-family-surface text-family-text-secondary"
-            title="Retour"
-            aria-label="Retour"
+            title="Retour à MyFamily+"
+            aria-label="Retour à MyFamily+"
           >
             <ArrowLeft className="h-5 w-5" />
-          </button>
+          </a>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-xs font-black uppercase text-family-primary">
               <Cpu className="h-4 w-4" />
-              Laboratoire local
+              Laboratoire vocal · PWA
             </div>
             <h1 className="mt-1 text-xl font-black sm:text-2xl">{view === 'qwen' ? 'Qwen 3.5 0.8B' : view === 'courses' ? 'Parseur Courses' : 'Assistant familial'}</h1>
-            <p className="mt-1 text-xs text-family-text-secondary">POC isolé · aucune action MyFamily+ n’est exécutée</p>
+            <p className="mt-1 text-xs text-family-text-secondary">Mode test · aucune modification des données du foyer</p>
           </div>
           <span className="rounded-md border border-family-border bg-family-surface px-3 py-2 text-[10px] font-black uppercase text-family-text-secondary">
             {view !== 'qwen' ? 'Sans modèle IA' : engineState === 'ready' ? 'Moteur prêt' : engineState === 'loading' ? 'Installation' : engineState === 'generating' ? 'Inférence' : 'Inactif'}

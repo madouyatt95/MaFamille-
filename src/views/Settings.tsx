@@ -41,6 +41,7 @@ import {
   LogOut,
   MonitorSmartphone,
   Search,
+  FlaskConical,
   UploadCloud
 } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase';
@@ -81,6 +82,7 @@ const SETTINGS_SEARCH_ITEMS = [
   { tab: 'compte', target: 'settings-delete-account', title: 'Supprimer mon compte', description: 'Suppression définitive du compte et des données' },
   { tab: 'compte', target: 'settings-appearance', title: 'Apparence', description: 'Mode sombre, clair ou sépia' },
   { tab: 'compte', target: 'settings-accessibility', title: 'Accessibilité', description: 'Texte, contraste et animations' },
+  { tab: 'compte', target: 'settings-voice-lab', title: 'Laboratoire vocal', description: 'Essai du micro, assistant familial et parseur Courses' },
   { tab: 'compte', target: 'settings-currency', title: 'Devise', description: 'Euro, franc CFA ou dollar' },
   { tab: 'famille', target: 'settings-household', title: 'Foyer et abonnement', description: 'Premium, membres et invitations' },
   { tab: 'alertes', target: 'settings-push', title: 'Notifications', description: 'Notifications sur cet appareil' },
@@ -207,7 +209,7 @@ export const Settings: React.FC<SettingsProps> = ({
   const ActiveSettingsIcon = activeSettingsTab.icon;
   const normalizedSettingsSearch = settingsSearch.trim().toLocaleLowerCase('fr-FR');
   const settingsSearchResults = normalizedSettingsSearch.length >= 2
-    ? SETTINGS_SEARCH_ITEMS.filter(item => `${item.title} ${item.description}`.toLocaleLowerCase('fr-FR').includes(normalizedSettingsSearch)).slice(0, 6)
+    ? SETTINGS_SEARCH_ITEMS.filter(item => (!isNativeApp || item.target !== 'settings-voice-lab') && `${item.title} ${item.description}`.toLocaleLowerCase('fr-FR').includes(normalizedSettingsSearch)).slice(0, 6)
     : [];
 
   const currentDevice = (() => {
@@ -775,6 +777,19 @@ export const Settings: React.FC<SettingsProps> = ({
           </div>
         )}
       </div>
+
+      {!isNativeApp && (
+        <a
+          id="settings-voice-lab"
+          href="/ai-lab"
+          className="flex min-h-14 scroll-mt-5 items-center gap-3 border-y border-family-border py-3 text-family-text"
+        >
+          <FlaskConical className="h-5 w-5 shrink-0 text-family-primary" />
+          <span className="min-w-0 flex-1 text-sm font-bold">Laboratoire vocal</span>
+          <span className="text-xs font-medium text-family-text-secondary">Essai</span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-family-text-secondary" />
+        </a>
+      )}
 
       <div className="grid grid-cols-4 gap-1 rounded-2xl border border-white/8 bg-white/4 p-1.5 shadow-[0_14px_36px_rgba(0,0,0,0.08)]">
         {settingsTabs.map((tab) => (
