@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import {
   LOCAL_QWEN_CACHE_NAME,
   LOCAL_QWEN_ESTIMATED_BYTES,
@@ -19,6 +20,13 @@ import {
 import { PARSER_DERIVED_EXAMPLES, buildParserDerivedExamples } from '../src/ai/local/parserExampleLibrary.ts';
 import { validateStructuredAction } from '../src/ai/local/structuredAction.ts';
 import { ALL_FAMILY_MODULES } from '../src/types.ts';
+
+test('la route du laboratoire se recharge sur Vercel sans modifier les routes applicatives', () => {
+  const config = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+  for (const path of ['/ai-lab', '/ai-lab/', '/app', '/decouvrir']) {
+    assert.ok(config.rewrites.some((rule: { source: string; destination: string }) => rule.source === path && rule.destination === '/index.html'));
+  }
+});
 
 test('le POC Qwen utilise un modèle versionné et un cache dédié', () => {
   assert.equal(LOCAL_QWEN_MODEL_ID, 'onnx-community/Qwen3.5-0.8B-ONNX-OPT');
