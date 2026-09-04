@@ -75,7 +75,8 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // PARTIE CACHING PWA
-const CACHE_NAME = 'myfamily-plus-cache-v12-budget-integrity';
+const CACHE_NAME = 'myfamily-plus-cache-v13-local-ai-lab';
+const PERSISTENT_CACHE_PREFIXES = ['myfamily-qwen-model-', 'transformers-cache'];
 const ASSETS_TO_CACHE = [
   '/',
   '/app',
@@ -191,7 +192,8 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((name) => {
-          if (name !== CACHE_NAME) {
+          const isPersistentModelCache = PERSISTENT_CACHE_PREFIXES.some((prefix) => name.startsWith(prefix));
+          if (name !== CACHE_NAME && !isPersistentModelCache) {
             return caches.delete(name);
           }
         })
