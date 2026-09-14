@@ -5,7 +5,7 @@ import { transcriptionMetrics } from '../ai/local/voiceLabMetrics';
 import { startLabHandsFree, type HandsFreePhase } from './labHandsFree';
 
 export type VoiceBenchObservation = { transcript: string; recognitionMs: number; parseMs: number; interpretation: string; status: string; speech?: string };
-export function VoiceBench({ onTranscript, onListeningChange, compact = false }: { onTranscript: (text: string, elapsed: number, alternatives?: string[]) => VoiceBenchObservation; onListeningChange: (active: boolean) => void; compact?: boolean }) {
+export function VoiceBench({ onTranscript, onListeningChange, compact = false, realProposal = false }: { onTranscript: (text: string, elapsed: number, alternatives?: string[]) => VoiceBenchObservation; onListeningChange: (active: boolean) => void; compact?: boolean; realProposal?: boolean }) {
   const [consent, setConsent] = useState(false);
   const [listening, setListening] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -68,11 +68,11 @@ export function VoiceBench({ onTranscript, onListeningChange, compact = false }:
   };
   return <section className="mt-4 border-t border-family-border pt-4" aria-label="Banc d’essai vocal">
     <h4 className="text-sm font-bold">{compact ? 'Dialogue vocal' : 'Banc d’essai vocal'}</h4>
-    <p className="mt-2 text-xs leading-relaxed text-family-text-secondary">La reconnaissance peut transmettre la voix au service du navigateur. Aucun audio enregistré par MyFamily+ ; transcription et mesures conservées uniquement pendant cette session du laboratoire.</p>
+    <p className="mt-2 text-xs leading-relaxed text-family-text-secondary">La reconnaissance peut transmettre la voix au service du navigateur. Aucun audio enregistré par MyFamily+ ; transcription et mesures conservées uniquement pendant cette session.</p>
     {!supported && <p role="status" className="mt-2 text-xs text-family-warning">Micro de test indisponible dans ce navigateur ou hors connexion sécurisée. Les essais texte restent disponibles.</p>}
     <label className="mt-3 flex gap-2 text-xs"><input type="checkbox" checked={consent} onChange={event => { setConsent(event.target.checked); if (!event.target.checked) cancel(); }} />J’autorise la reconnaissance vocale pour cet essai</label>
     <label className="mt-3 flex gap-2 text-xs"><input type="checkbox" checked={handsFree} disabled={!consent || !supported} onChange={event => { cancel(); setHandsFree(event.target.checked); }} />Dialogue vocal mains libres</label>
-    {handsFree && <p className="mt-2 text-xs text-family-text-secondary">Questions lues à voix haute, puis reprise de l’écoute. Maximum 8 tours et 2 minutes. Aucune application automatique à la simulation.</p>}
+    {handsFree && <p className="mt-2 text-xs text-family-text-secondary">Questions lues à voix haute, puis reprise de l’écoute. Maximum 8 tours et 2 minutes. {realProposal ? 'Enregistrement uniquement après validation avec le bouton.' : 'Aucune application automatique à la simulation.'}</p>}
     {!compact && <label className="mt-3 block text-xs">Phrase attendue (facultatif)<input aria-label="Phrase attendue" maxLength={500} value={expected} disabled={listening} onChange={event => setExpected(event.target.value)} className="app-field mt-1 min-h-10 w-full rounded-lg px-2" /></label>}
     <div className="mt-3 flex items-center gap-3">
       <button type="button" title={listening ? handsFree ? 'Arrêter le dialogue vocal' : 'Terminer la phrase' : 'Démarrer le micro de test'} aria-label={listening ? handsFree ? 'Arrêter le dialogue vocal' : 'Terminer la phrase' : 'Démarrer le micro de test'} disabled={!supported || !consent || stopping && !handsFree} onClick={() => { if (listening) { if (handsFree) cancel(); else { setStopping(true); controller.current?.stop(); } } else start(); }} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-family-border disabled:opacity-40">{listening ? <Square size={18} /> : <Mic size={18} />}</button>

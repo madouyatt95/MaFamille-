@@ -367,6 +367,7 @@ const PasswordRecoveryView = lazy(() => import('./components/PasswordRecoveryVie
 const CommuneHub = lazy(() => import('./components/modules/CommuneHub').then(module => ({ default: module.CommuneHub })));
 const GroceryRemainingPopup = lazy(() => import('./components/voice/GroceryRemainingPopup').then(module => ({ default: module.GroceryRemainingPopup })));
 const PendingGroceryPanel = lazy(() => import('./components/voice/PendingGroceryPanel').then(module => ({ default: module.PendingGroceryPanel })));
+const VoicePilotPanel = lazy(() => import('./components/voice/VoicePilotPanel'));
 const CoffreFortAvance = lazy(() => import('./components/modules/CoffreFortAvance').then(module => ({ default: module.CoffreFortAvance })));
 const Messagerie = lazy(() => import('./components/modules/Messagerie').then(module => ({ default: module.Messagerie })));
 const VehiclesModule = lazy(() => import('./components/modules/VehiclesModule').then(module => ({ default: module.VehiclesModule })));
@@ -1499,6 +1500,7 @@ function App() {
 
   // Voice Command Assistant State
   const [voiceActive, setVoiceActive] = useState(false);
+  const [voicePilotRequest, setVoicePilotRequest] = useState<{ id: string; text: string; foyerId: string; memberId: string; scope: string } | null>(null);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [voiceFeedback, setVoiceFeedback] = useState('');
   const [voiceWave, setVoiceWave] = useState(false);
@@ -8456,6 +8458,25 @@ function App() {
 
   const parseVoiceCommand = async (rawInputText: string) => {
     try {
+      const ownProfile = myMemberProfileRef.current;
+      if (!isNativeApp && effectiveIsPremium && user?.id && foyer?.id && ownProfile?.approved === true && ['admin', 'parent'].includes(ownProfile.role) && ownProfile.id === activeMemberIdRef.current) {
+        const scope = `${user.id}:${foyer.id}:${ownProfile.id}`;
+        let pilotEnabled = false;
+        try { pilotEnabled = localStorage.getItem(`mf_voice_pilot_v1:${scope}`) === '1'; } catch { /* Keep the current microphone when storage is unavailable. */ }
+        if (pilotEnabled) {
+          const { shouldUseVoicePilot } = await import('./ai/local/voicePilot');
+          const pending = Boolean(voiceContextRef.current && voiceContextRef.current.pendingAction !== 'none' && Date.now() - voiceContextRef.current.lastActiveTime <= 120000);
+          if (foyerRef.current?.id !== foyer.id || activeMemberIdRef.current !== ownProfile.id) return;
+          if (shouldUseVoicePilot(rawInputText, pilotEnabled, isNativeApp, pending)) {
+            voiceContextRef.current = null; voiceActiveRef.current = false;
+            setVoiceContext(null); setVoiceActive(false); setVoiceState('idle');
+            if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
+            voiceRecognitionRef.current?.abort();
+            setVoicePilotRequest({ id: crypto.randomUUID(), text: rawInputText, foyerId: foyer.id, memberId: ownProfile.id, scope });
+            return;
+          }
+        }
+      }
       const [{ parseSmartNaturalSentence, detectGroceryCategory, parseGroceryAction }, { DICTIONARIES }] = await Promise.all([
         import('./utils/groceryParser'),
         import('./utils/dictionaries')
@@ -15127,6 +15148,7 @@ function App() {
 
       /></Suspense>}
 
+      {voicePilotRequest && !isNativeApp && user && foyer?.id === voicePilotRequest.foyerId && activeMemberId === voicePilotRequest.memberId && <Suspense fallback={<div role="status" className="fixed inset-0 z-[100000] grid place-items-center bg-black/70 text-white">Ouverture de la demande…</div>}><VoicePilotPanel key={voicePilotRequest.id} initialText={voicePilotRequest.text} foyerId={voicePilotRequest.foyerId} memberId={voicePilotRequest.memberId} scope={voicePilotRequest.scope} onClose={() => setVoicePilotRequest(null)} onSaved={() => { void loadFoyerData(voicePilotRequest.foyerId); }} /></Suspense>}
       {/* Shared bottom iOS premium nav bar with quick actions central (+) trigger */}
       {activeModule !== 'messagerie' && (
         <BottomNav

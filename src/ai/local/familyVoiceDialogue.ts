@@ -1,11 +1,12 @@
 import { parseSafeGroceryVoiceV2, EMPTY_GROCERY_CONVERSATION, GROCERY_DIALOGUE_TTL_MS, detectProtectedVoiceDomain, groceryListSignature, type SafeGroceryConversation, type SafeGroceryParseResult, type SafeGroceryParserOptions } from './safeGroceryParserV2.ts';
 import { foldVoice, normalizeSafeVoiceText, type SafeGroceryItem } from './safeGroceryEntities.ts';
 import { readEuroCents } from './frenchVoiceNumbers.ts';
+import { suggestGroceryTranscriptions } from './groceryHearing.ts';
 
 export type LabExpense = { cents: number; currency: 'EUR'; label: string };
 export type LabUndoToken = { id: string; revision: number; signature: string; label: string; kind: 'add' | 'other'; scopeKey: string };
 export type FamilyVoiceContext = { grocery: SafeGroceryConversation; expenses: LabExpense[]; scopeKey?: string; expiresAt?: number; seen?: string[]; hearing?: { choices: string[]; previous: FamilyVoiceContext }; pendingUndo?: LabUndoToken };
-export type FamilyVoiceOptions = SafeGroceryParserOptions & { alternatives?: string[]; undo?: LabUndoToken };
+export type FamilyVoiceOptions = SafeGroceryParserOptions & { alternatives?: string[]; undo?: LabUndoToken; hearingChosen?: boolean };
 export type FamilyLabReceipt = { id: string; scopeKey: string; expiresAt: number; before: SafeGroceryItem[]; after: SafeGroceryItem[]; expenses: LabExpense[]; utteranceIds: string[] };
 export type FamilyVoiceResult = {
   grocery: SafeGroceryParseResult;
@@ -129,6 +130,13 @@ export function parseFamilyLabVoice(raw: string, previous: FamilyVoiceContext = 
   if (options.isFinal === false || options.utteranceId && context.seen?.includes(options.utteranceId)) return respond('Transcription intermédiaire ou déjà traitée.', context, 'ignored');
   if (!t || raw.length > 500) return respond('Reformulez une phrase courte.', emptyFamilyVoiceContext(), 'rejected');
   if (/^(?:stop|arrete|coupe le micro|arrete le dialogue)$/.test(t)) return parseFamilyLabVoiceCore(raw, emptyFamilyVoiceContext(), options);
+  if (!context.hearing && !options.hearingChosen && !options.alternatives?.length && ['courses', 'unknown'].includes(detectProtectedVoiceDomain(raw))) {
+    const suggestions = suggestGroceryTranscriptions(raw, options.vocabulary);
+    if (suggestions.length) {
+      const choices = [normalizeSafeVoiceText(raw), ...suggestions];
+      return respond(`Vouliez-vous dire « ${suggestions[0]} » ? Choisissez la phrase entendue ; rien n’est remplacé automatiquement.`, { ...context, scopeKey, expiresAt: context.expiresAt ?? now + GROCERY_DIALOGUE_TTL_MS, hearing: { choices, previous: context } });
+    }
+  }
   const candidates = [...new Set([raw, ...(options.alternatives || [])].map(value => normalizeSafeVoiceText(value)).filter(Boolean))];
   if (candidates.length > 1) {
     if (candidates.length > 5 || candidates.some(value => value.length > 500)) return respond('Trop de variantes vocales. Répétez une phrase courte.', emptyFamilyVoiceContext());
@@ -148,7 +156,7 @@ export function parseFamilyLabVoice(raw: string, previous: FamilyVoiceContext = 
     const ordinal = t.match(/^(?:(?:le|la|choix|option)\s+)?(premier|premiere|deuxieme|second|seconde|troisieme|quatrieme|cinquieme|[1-5])$/);
     const index = ordinal ? ({ premier: 0, premiere: 0, deuxieme: 1, second: 1, seconde: 1, troisieme: 2, quatrieme: 3, cinquieme: 4 }[ordinal[1]] ?? Number(ordinal[1]) - 1) : choices.findIndex(value => foldVoice(value) === t);
     if (index < 0 || index >= choices.length || !Number.isInteger(index)) return respond(`Choisissez un numéro entre 1 et ${choices.length}, ou dites annule. Un simple « oui » ne choisit pas une transcription.`);
-    return parseFamilyLabVoice(choices[index], context.hearing.previous, { ...options, now, alternatives: undefined });
+    return parseFamilyLabVoice(choices[index], context.hearing.previous, { ...options, now, alternatives: undefined, hearingChosen: true });
   }
   if (undoCommand.test(t)) {
     if (context.grocery.hasProposal || context.grocery.pending || context.expenses.length) return respond('Une proposition est encore en attente. Dites « annule » pour l’abandonner avant d’annuler une action déjà appliquée.');

@@ -9,6 +9,7 @@ import { loadLabVocabulary } from './labVocabularyStorage';
 import { LabVocabularyEditor } from './LabVocabularyEditor';
 import { VoiceBench, type VoiceBenchObservation } from './VoiceBench';
 import { describeGroceryChanges } from '../ai/local/labActionSummary';
+import { ParserFeedbackPanel } from './ParserFeedbackPanel';
 
 const labels: Record<SafeGroceryStatus, string> = { proposed: 'Proposition prête', needs_clarification: 'À préciser', confirmed: 'Confirmé', cancelled: 'Annulé', rejected: 'Rejeté', out_of_scope: 'Autre module', ignored: 'Ignoré' };
 const money = (cents: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(cents / 100);
@@ -111,5 +112,6 @@ export function GroceryParserLab({ prompt }: { prompt: string }) {
       {notice && <p className="mt-3 text-xs text-family-warning" role="status">{notice}</p>}
     </div>
     <fieldset disabled={voiceActive} className="min-w-0"><LabVocabularyEditor key={scopeKey} scope={scopeKey} entries={saved} onChange={changeVocabulary} /></fieldset>
+    <ParserFeedbackPanel key={`feedback:${scopeKey}`} scope={scopeKey} turns={history} />
   </section>;
 }

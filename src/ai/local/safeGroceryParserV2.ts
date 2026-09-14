@@ -18,6 +18,7 @@ export type SafeGroceryPending = {
   clarification: string;
   change?: Change;
   choices?: string[];
+  missingQuantities?: string[];
 };
 export type SafeGroceryConversation = {
   pending: SafeGroceryPending | null;
@@ -71,7 +72,7 @@ export const GROCERY_DIALOGUE_TTL_MS = 120_000;
 const CONFIRM = /^(?:oui|oui merci|confirme|valide|c'est bon|c est bon|d'accord|d accord|ok)$/;
 const CANCEL = /^(?:non|annule|annuler|laisse tomber|oublie|stop)$/;
 const NEGATION = /\b(?:pas|deja|jamais|sans ajouter)\b|^(?:ne\s+|n'ajoute)/;
-const CONDITIONAL = /\b(?:si|seulement|au cas ou|quand|eventuellement|peut etre)\b/;
+const CONDITIONAL = /\b(?:si|au cas ou|quand|eventuellement|peut etre)\b|\bseulement\b(?!\s+celui\b)/;
 
 export function detectProtectedVoiceDomain(text: string): SafeVoiceDomain {
   const t = foldVoice(normalizeSafeVoiceText(text));
@@ -108,6 +109,11 @@ const resolveTarget = (text: string, items: SafeGroceryItem[]) => {
   const canonical = parsed.items.length === 1 ? parsed.items[0].name : t;
   const matches = items.filter(item => foldVoice(item.name) === foldVoice(canonical) || foldVoice(item.productName || '') === foldVoice(canonical));
   return matches.length === 1 ? matches[0] : undefined;
+};
+
+const referenceChoices = (text: string, items: SafeGroceryItem[]) => {
+  const reference = foldVoice(text).replace(/^celui\s+/, '');
+  return items.filter(item => foldVoice(item.name) === reference || foldVoice(item.productName || '') === reference || item.qualifiers?.some(value => foldVoice(value) === reference));
 };
 
 export function parseSafeGroceryVoiceV2(rawText: string, inputContext: SafeGroceryConversation = EMPTY_GROCERY_CONVERSATION, options: SafeGroceryParserOptions = {}): SafeGroceryParseResult {
@@ -194,7 +200,7 @@ export function parseSafeGroceryVoiceV2(rawText: string, inputContext: SafeGroce
           const amount = addGroceryAmounts(existing.amount, item.amount);
           if (!amount) return clarify(`Les unités de ${item.name} diffèrent. Précisez la quantité totale et son unité.`, 'quantité et unité');
           list = list.map(candidate => candidate === existing ? { ...candidate, amount, quantity: formatSafeAmount(amount) } : candidate);
-        } else list.push({ ...item, amount: { ...item.amount } });
+        } else list.push({ ...item, ...(change.kind === 'replace' && change.items.length === 1 ? { recordId: target?.recordId } : {}), amount: { ...item.amount } });
       }
     }
     const proposalId = `${scopeKey}:${now}:${groceryListSignature(list)}`;
@@ -248,6 +254,29 @@ export function parseSafeGroceryVoiceV2(rawText: string, inputContext: SafeGroce
     const target = resolveTarget(text, current);
     if (target && context.pending.choices?.includes(target.name)) return propose({ ...context.pending.change, target: target.name });
   }
+
+  const targetedReplacement = t.match(/^(?:finalement\s+)?remplace\s+(?:seulement\s+)?(celui\s+.+?)(?:\s+par\s+(.+))?$/);
+  if (targetedReplacement) {
+    const candidates = referenceChoices(targetedReplacement[1], current);
+    const qualifier = targetedReplacement[2] && GROCERY_QUALIFIERS.find(value => foldVoice(value) === targetedReplacement[2]);
+    if (!targetedReplacement[2]) return clarify('Par quel produit ou quelle variante souhaitez-vous le remplacer ?', 'remplacement', { kind: 'correction', intent: 'shopping.add', expectedCategory: null, clarification: 'Par quel produit ou quelle variante souhaitez-vous le remplacer ?', choices: candidates.map(item => item.name) });
+    const parsed = parseGroceryEntities(targetedReplacement[2], options.vocabulary);
+    if (!qualifier && (parsed.error || parsed.items.length !== 1)) return clarify('Indiquez un seul produit de remplacement.', 'remplacement');
+    const change: Change = qualifier ? { kind: 'qualify', items: [], qualifier } : { kind: 'replace', items: parsed.items };
+    if (candidates.length !== 1) {
+      const question = candidates.length ? `Quel produit : ${candidates.map((item, i) => `${i + 1}. ${item.name}`).join(', ')} ?` : 'Aucun produit ne correspond à cette variante. Indiquez son nom.';
+      return clarify(question, 'produit ciblé', { kind: 'selection', intent: 'shopping.add', expectedCategory: null, clarification: question, choices: candidates.map(item => item.name), change });
+    }
+    if (!qualifier && !readGroceryAmount(targetedReplacement[2]).explicit) change.items = change.items.map(item => ({ ...item, amount: candidates[0].amount, quantity: candidates[0].quantity }));
+    return propose({ ...change, target: candidates[0].name });
+  }
+  if (context.pending?.kind === 'correction' && context.pending.choices?.length && context.pending.clarification.startsWith('Par quel')) {
+    const replacement = t.replace(/^par\s+/, '');
+    const qualifier = GROCERY_QUALIFIERS.find(value => foldVoice(value) === replacement);
+    const targets = current.filter(item => context.pending?.choices?.includes(item.name));
+    if (qualifier && targets.length === 1) return propose({ kind: 'qualify', items: [], target: targets[0].name, qualifier });
+    return clarify('Précisez la variante et le produit dans une phrase complète.', 'remplacement', context.pending);
+  }
   const qualifier = GROCERY_QUALIFIERS.find(value => t === foldVoice(value) || t.endsWith(` ${foldVoice(value)}`));
   const qualifierOnly = qualifier && (t === foldVoice(qualifier) || /^(?:prends?|mets?|je (?:le|les) veux|celui|ceux|celle|celles|les deux)\b/.test(t) || /[, :]\s*(?:prends?|mets?)\b/.test(t));
   if (qualifierOnly && qualifier) {
@@ -270,9 +299,17 @@ export function parseSafeGroceryVoiceV2(rawText: string, inputContext: SafeGroce
 
   if (context.pending?.kind === 'planning_quantity' && context.pending.change) {
     const amount = readGroceryAmount(text);
-    if (amount.explicit && !amount.rest && amount.valid && context.pending.change.items.length === 1) {
-      const item = context.pending.change.items[0];
-      return propose({ kind: 'add', items: [{ ...item, amount: amount.amount, quantity: formatSafeAmount(amount.amount) }] });
+    const missing = context.pending.missingQuantities || context.pending.change.items.map(item => item.name);
+    if (amount.explicit && amount.valid) {
+      const named = amount.rest ? resolveTarget(amount.rest, context.pending.change.items) : undefined;
+      const name = named?.name || (!amount.rest ? missing[0] : undefined);
+      if (name && missing.includes(name)) {
+        const items = context.pending.change.items.map(item => item.name === name ? { ...item, amount: amount.amount, quantity: formatSafeAmount(amount.amount) } : item);
+        const remaining = missing.filter(value => value !== name);
+        if (!remaining.length) return propose({ kind: 'add', items });
+        const question = `Quelle quantité de ${remaining[0]} ?`;
+        return clarify(question, 'quantité', { ...context.pending, clarification: question, change: { kind: 'add', items }, missingQuantities: remaining });
+      }
     }
   }
 
@@ -328,6 +365,21 @@ export function parseSafeGroceryVoiceV2(rawText: string, inputContext: SafeGroce
   if (context.pending?.kind === 'unknown_product') return clarify(context.pending.clarification, 'confirmation du nom', context.pending);
   const payload = (shortage || (addPrefix ? text.slice(addPrefix[0].length) : text))
     .replace(addPrefix || shortage ? /\s+(?:(?:à|a|dans)\s+(?:la|ma|notre)\s+liste(?:\s+de courses)?|au panier)$/ : /$^/, '');
+  // Distribution is accepted only when all variants account for the exact total.
+  const distribution = payload.match(/^(.+?),\s*(un|une|\d+)\s+(nature|à la fraise|à la vanille|au chocolat)\s+et\s+(?:l'autre|un|une|\d+)\s+(nature|à la fraise|à la vanille|au chocolat)$/);
+  if (distribution) {
+    const base = parseGroceryEntities(distribution[1], options.vocabulary);
+    const counts = distribution[0].match(/,\s*(un|une|\d+)\s+.*?\s+et\s+(l'autre|un|une|\d+)\s+/);
+    const left = counts?.[1] === 'un' || counts?.[1] === 'une' ? 1 : Number(counts?.[1]);
+    const right = counts?.[2] === "l'autre" || counts?.[2] === 'un' || counts?.[2] === 'une' ? 1 : Number(counts?.[2]);
+    if (base.error || base.items.length !== 1 || left + right !== base.items[0].amount.value || left < 1 || right < 1 || distribution[3] === distribution[4]) return clarify('La répartition doit correspondre au nombre total, avec une variante distincte par lot.', 'répartition');
+    const item = base.items[0];
+    const items = [[left, distribution[3]], [right, distribution[4]]].map(([count, flavour]) => {
+      const amount = { ...item.amount, value: Number(count) };
+      return qualifyGroceryItem({ ...item, amount, quantity: formatSafeAmount(amount) }, String(flavour))!;
+    });
+    return propose({ kind: 'add', items });
+  }
   const parsed = parseGroceryEntities(payload, options.vocabulary);
   const explicit = Boolean(shortage || addPrefix || readGroceryAmount(payload).explicit);
   if (parsed.error) return baseResult('rejected', parsed.error, { domain: detectProtectedVoiceDomain(text), nextContext: session() });
@@ -336,8 +388,9 @@ export function parseSafeGroceryVoiceV2(rawText: string, inputContext: SafeGroce
     if (expected && parsed.items.some(item => item.category !== expected)) return clarify(context.pending.clarification, 'produits attendus', context.pending);
     const segments = splitGrocerySegments(payload);
     if (segments.some(segment => !readGroceryAmount(segment.trim()).explicit)) {
-      const question = `Quelle quantité${parsed.items.length === 1 ? ` de ${parsed.items[0].name}` : ' pour chaque produit'}${context.planning?.people ? ` pour ${context.planning.people} personnes` : ''} ?`;
-      return clarify(question, 'quantités', { kind: 'planning_quantity', intent: 'shopping.plan', expectedCategory: expected, clarification: question, change: { kind: 'add', items: parsed.items } });
+      const missingQuantities = parsed.items.filter((_, index) => !readGroceryAmount(segments[index]).explicit).map(item => item.name);
+      const question = `Quelle quantité de ${missingQuantities[0]}${context.planning?.people ? ` pour ${context.planning.people} personnes` : ''} ?`;
+      return clarify(question, 'quantités', { kind: 'planning_quantity', intent: 'shopping.plan', expectedCategory: expected, clarification: question, change: { kind: 'add', items: parsed.items }, missingQuantities });
     }
     return propose({ kind: 'add', items: parsed.items });
   }

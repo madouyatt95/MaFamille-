@@ -4,6 +4,7 @@ import { readFrenchNumber } from './frenchVoiceNumbers.ts';
 export type GroceryUnit = 'piece' | 'bottle' | 'pack' | 'box' | 'can' | 'kg' | 'g' | 'litre' | 'ml';
 export type GroceryAmount = { value: number; unit: GroceryUnit; packSize?: number };
 export type SafeGroceryItem = {
+  recordId?: string;
   name: string;
   category: string;
   quantity: string;
@@ -19,6 +20,7 @@ const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'
 
 export function normalizeSafeVoiceText(raw: string, aliases: Record<string, string> = {}): string {
   let text = raw.toLowerCase().trim().replace(/[’`]/g, "'")
+    .replace(/\bl\s+([aeiouyhàâäéèêëîïôöùûü])/gi, "l'$1")
     .replace(/(\d)(?=[a-zà-ÿ])/gi, '$1 ')
     .replace(/\bd\s+([aeiouyhàâäéèêëîïôöùûü])/gi, "d'$1")
     .replace(/\b(?:euh+|heu+|s'il te plaît|s'il te plait|stp)\b/gi, ' ')
@@ -37,14 +39,15 @@ export function normalizeSafeVoiceText(raw: string, aliases: Record<string, stri
 const productByAlias = new Map(PRODUCT_LIST.flatMap(product => [product.name, ...product.keywords].map(alias => [foldVoice(normalizeSafeVoiceText(alias)), product] as const)));
 const productPatterns = [...productByAlias.keys()].map(alias => new RegExp(`(?:^|[^a-z])${escapeRegex(alias)}(?:$|[^a-z])`));
 export const containsGroceryProduct = (text: string) => productPatterns.some(pattern => pattern.test(foldVoice(text)));
-export const stripArticle = (text: string) => text.trim().replace(/^(?:(?:du|de la|des|de|le|la|les|un|une)\s+|de l'|l'|d')/i, '').trim();
+export const stripArticle = (text: string) => text.trim().replace(/^(?:de l'|l'|d'|(?:du|de la|des|de|le|la|les|un|une)\s+)/i, '').trim();
 
-export const GROCERY_QUALIFIERS = ['sans sucre', 'sans lactose', 'bio', 'demi-écrémé', 'écrémé', 'entier'] as const;
+export const GROCERY_QUALIFIERS = ['sans sucre', 'sans lactose', 'bio', 'demi-écrémé', 'écrémé', 'entier', 'nature', 'à la fraise', 'à la vanille', 'au chocolat'] as const;
+const MILK_TYPES: readonly string[] = ['demi-écrémé', 'écrémé', 'entier'];
+const FLAVOURS: readonly string[] = ['nature', 'à la fraise', 'à la vanille', 'au chocolat'];
 export function qualifyGroceryItem(item: SafeGroceryItem, qualifier: string): SafeGroceryItem | null {
   const label = GROCERY_QUALIFIERS.find(value => foldVoice(value) === foldVoice(qualifier));
   if (!label) return null;
-  const milkTypes: readonly string[] = GROCERY_QUALIFIERS.slice(3);
-  const qualifiers = [...(item.qualifiers || []).filter(value => value !== label && !(milkTypes.includes(label) && milkTypes.includes(value))), label].sort();
+  const qualifiers = [...(item.qualifiers || []).filter(value => value !== label && !(MILK_TYPES.includes(label) && MILK_TYPES.includes(value)) && !(FLAVOURS.includes(label) && FLAVOURS.includes(value))), label].sort();
   const productName = item.productName || item.name;
   return { ...item, productName, qualifiers, name: `${productName} ${qualifiers.join(' ')}` };
 }
@@ -115,7 +118,7 @@ export function parseGroceryEntities(text: string, vocabulary: string[] = []): {
       core = core.slice(0, -(qualifier.length + 1)).trim();
     }
     const product = productByAlias.get(foldVoice(core));
-    if (qualifiers.filter(value => GROCERY_QUALIFIERS.slice(3).includes(value as typeof GROCERY_QUALIFIERS[number])).length > 1) return { items: [], error: 'Les précisions du lait se contredisent. Choisissez entier, écrémé ou demi-écrémé.', unknown: [] };
+    if (qualifiers.filter(value => MILK_TYPES.includes(value)).length > 1 || qualifiers.filter(value => FLAVOURS.includes(value)).length > 1) return { items: [], error: 'Les variantes se contredisent. Choisissez une variante par produit.', unknown: [] };
     const personal = vocabulary.find(name => foldVoice(name) === foldVoice(core));
     const name = product?.name || personal || core.charAt(0).toUpperCase() + core.slice(1);
     let item: SafeGroceryItem = { name, category: product?.category || 'Autres', quantity: formatSafeAmount(amount), amount,
