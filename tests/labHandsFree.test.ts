@@ -60,3 +60,20 @@ test('arrêt après deux minutes même avec activité', t => {
   t.mock.timers.tick(10000); h.finish(); t.mock.timers.tick(10001);
   assert.equal(h.phases.at(-1), 'stopped'); assert.match(h.errors[0], /deux minutes/);
 });
+test('pause vocale sans interprétation puis reprise explicite', t => {
+  const h = harness(t); h.finish('attends'); assert.equal(h.phases.at(-1), 'paused'); assert.equal(h.interpreted(), 0);
+  h.controller.resume(); assert.equal(h.phases.at(-1), 'listening'); assert.equal(h.callbacks.length, 2);
+});
+test('interrompre la parole annule TTS avant toute réouverture du micro', t => {
+  const h = harness(t); h.finish(); h.controller.interrupt();
+  assert.equal(h.speech[0].cancelled, true); assert.equal(h.callbacks.length, 2);
+  h.speech[0].end(); assert.equal(h.callbacks.length, 2);
+});
+test('pause pendant écoute ignore la transcription tardive', t => {
+  const h = harness(t); h.controller.pause(); h.finish(); assert.equal(h.interpreted(), 0);
+  h.controller.resume(); h.finish('demain'); assert.equal(h.interpreted(), 1);
+});
+test('pause ne prolonge pas la limite de session', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] }); const h = harness(t); h.controller.pause();
+  t.mock.timers.tick(120001); h.controller.resume(); assert.equal(h.phases.at(-1), 'stopped'); assert.equal(h.callbacks.length, 1);
+});

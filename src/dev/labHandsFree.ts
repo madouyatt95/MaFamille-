@@ -1,6 +1,6 @@
 import type { LabSpeechCallbacks } from './labSpeechRecognition.ts';
 
-export type HandsFreePhase = 'listening' | 'speaking' | 'stopped';
+export type HandsFreePhase = 'listening' | 'speaking' | 'paused' | 'stopped';
 type Handle = { abort(): void; stop(): void };
 type Ports = {
   listen(callbacks: LabSpeechCallbacks): Handle;
@@ -16,6 +16,7 @@ export function startLabHandsFree(ports: Ports, limits = { sessionMs: 120000, li
   let active = true;
   let epoch = 0;
   let turns = 0;
+  let paused = false;
   let listener: Handle | undefined;
   let cancelSpeech: (() => void) | undefined;
   let turnTimer: ReturnType<typeof setTimeout> | undefined;
@@ -27,8 +28,14 @@ export function startLabHandsFree(ports: Ports, limits = { sessionMs: 120000, li
     ports.interim(''); ports.phase('stopped');
   };
   const fail = (message: string) => { if (active) { stop(); ports.error(message); } };
-  const listen = () => {
+  const pause = () => {
     if (!active) return;
+    paused = true; epoch++; clearTimeout(turnTimer);
+    listener?.abort(); listener = undefined; cancelSpeech?.(); cancelSpeech = undefined;
+    ports.interim(''); ports.phase('paused');
+  };
+  const listen = () => {
+    if (!active || paused) return;
     if (++turns > limits.turns) { fail('Limite du dialogue atteinte. Relancez le micro pour continuer.'); return; }
     const turn = ++epoch;
     let final: [string, number, string[]] | undefined;
@@ -46,6 +53,7 @@ export function startLabHandsFree(ports: Ports, limits = { sessionMs: 120000, li
           ended = true;
           listener = undefined; clearTimeout(turnTimer); ports.interim('');
           if (!final) { fail('Aucune phrase finale. Le dialogue est arrêté.'); return; }
+          if (/^(?:attends?|pause)[.!?]*$/i.test(final[0].trim())) { pause(); return; }
           let result: ReturnType<Ports['interpret']>;
           try { result = ports.interpret(...final); } catch { fail('Impossible d’interpréter cette phrase. Rien n’est appliqué.'); return; }
           if (!valid()) return;
@@ -67,5 +75,5 @@ export function startLabHandsFree(ports: Ports, limits = { sessionMs: 120000, li
   };
   const sessionTimer = setTimeout(() => fail('Dialogue arrêté après deux minutes. Vous pouvez le relancer.'), limits.sessionMs);
   listen();
-  return { stop, finishPhrase: () => listener?.stop() };
+  return { stop, pause, resume: () => { if (active && paused) { paused = false; listen(); } }, interrupt: () => { if (active) { pause(); paused = false; listen(); } }, finishPhrase: () => listener?.stop() };
 }

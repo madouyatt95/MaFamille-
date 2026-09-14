@@ -35,6 +35,8 @@ import { evaluateDeterministicGuardrail } from '../ai/local/deterministicGuardra
 import { GroceryParserLab } from './GroceryParserLab';
 import { HouseholdAssistantLab } from './HouseholdAssistantLab';
 import { validateStructuredAction } from '../ai/local/structuredAction';
+import { FamilyWorkspace } from './FamilyWorkspace';
+import { specialistPrompt, type SpecialistKind } from '../ai/local/workspaceSpecialists';
 
 type EngineState = 'idle' | 'loading' | 'ready' | 'generating' | 'error';
 
@@ -51,7 +53,7 @@ const formatDuration = (milliseconds: number) => {
 };
 
 export function AiLab() {
-  const [view, setView] = useState<'assistant' | 'courses' | 'qwen'>('assistant');
+  const [view, setView] = useState<'assistant' | 'courses' | 'qwen' | 'foyer'>('foyer');
   const providerRef = useRef<LocalQwenProvider | null>(null);
   const [compatibility, setCompatibility] = useState<LocalAiCompatibility | null>(null);
   const [backend, setBackend] = useState<LocalAiBackend>('webgpu');
@@ -161,6 +163,21 @@ export function AiLab() {
     setError('Génération interrompue. Le worker local a été arrêté.');
   };
 
+  const generateSpecialist = async (kind: SpecialistKind, input: string, context: string) => {
+    if (engineState !== 'ready') throw new Error('Préparez le modèle local.');
+    const pack = getLocalAiCapabilityPack(kind);
+    const guard = evaluateDeterministicGuardrail(pack, `${input}\n${context}`, false);
+    if (guard) return { text: guard.response, durationMs: 0 };
+    setEngineState('generating');
+    const provider = getProvider();
+    const timeout = setTimeout(() => {
+      if (providerRef.current === provider) { provider.terminate(); providerRef.current = null; }
+    }, 90_000);
+    try {
+      return await provider.generate({ ...specialistPrompt(kind, input, context), maxNewTokens: 320 });
+    } finally { clearTimeout(timeout); setEngineState(providerRef.current ? 'ready' : 'idle'); }
+  };
+
   const handleClearCache = async () => {
     if (!window.confirm('Supprimer le moteur Qwen téléchargé sur cet appareil ?')) return;
     handleStop();
@@ -220,14 +237,14 @@ export function AiLab() {
               Laboratoire vocal · PWA
             </div>
             <h1 className="mt-1 text-xl font-black sm:text-2xl">{view === 'qwen' ? 'Qwen 3.5 0.8B' : view === 'courses' ? 'Parseur Courses' : 'Assistant familial'}</h1>
-            <p className="mt-1 text-xs text-family-text-secondary">Mode test · aucune modification des données du foyer</p>
+            <p className="mt-1 text-xs text-family-text-secondary">{view === 'foyer' ? 'Votre contexte, vos préparations et vos préférences' : 'Mode test · aucune modification des données du foyer'}</p>
           </div>
           <span className="rounded-md border border-family-border bg-family-surface px-3 py-2 text-[10px] font-black uppercase text-family-text-secondary">
-            {view !== 'qwen' ? 'Sans modèle IA' : engineState === 'ready' ? 'Moteur prêt' : engineState === 'loading' ? 'Installation' : engineState === 'generating' ? 'Inférence' : 'Inactif'}
+            {view !== 'qwen' && view !== 'foyer' ? 'Sans modèle IA' : engineState === 'ready' ? 'Qwen prêt' : engineState === 'loading' ? 'Installation' : engineState === 'generating' ? 'Génération' : 'Qwen inactif'}
           </span>
         </header>
-        <div role="tablist" aria-label="Outils du laboratoire" className="mt-4 grid grid-cols-3 border-b border-family-border">{([['assistant', 'Assistant familial'], ['courses', 'Parseur Courses'], ['qwen', 'Qwen']] as const).map(([key, label]) => <button type="button" key={key} role="tab" aria-selected={view === key} onClick={() => { if (key === view) return; if (view === 'assistant' && !window.confirm('Changer d’outil efface le contexte de test non exporté et arrête le dialogue. Continuer ?')) return; setView(key); }} className={`min-h-11 px-2 py-2 text-xs font-bold ${view === key ? 'border-b-2 border-family-primary text-family-primary' : 'text-family-text-secondary'}`}>{label}</button>)}</div>
-        {view === 'assistant' ? <HouseholdAssistantLab /> : view === 'courses' ? <GroceryParserLab prompt="Ajoute deux bouteilles de lait à la liste de courses." /> : <>
+        <div role="tablist" aria-label="Outils du laboratoire" className="mt-4 grid grid-cols-2 border-b border-family-border sm:grid-cols-4">{([['foyer', 'Mon foyer'], ['assistant', 'Simulation familiale'], ['courses', 'Parseur Courses'], ['qwen', 'Qwen']] as const).map(([key, label]) => <button type="button" key={key} role="tab" aria-selected={view === key} onClick={() => { if (key === view) return; if (view === 'assistant' && !window.confirm('Changer d’outil efface le contexte de test non exporté et arrête le dialogue. Continuer ?')) return; setView(key); }} className={`min-h-11 px-2 py-2 text-xs font-bold ${view === key ? 'border-b-2 border-family-primary text-family-primary' : 'text-family-text-secondary'}`}>{label}</button>)}</div>
+        {view === 'foyer' ? <FamilyWorkspace generate={generateSpecialist} ready={engineState === 'ready'} onPrepare={() => setView('qwen')} onStop={() => { if (engineState === 'generating') handleStop(); }} /> : view === 'assistant' ? <HouseholdAssistantLab /> : view === 'courses' ? <GroceryParserLab prompt="Ajoute deux bouteilles de lait à la liste de courses." /> : <>
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <div className="space-y-6">
             <section className="border-b border-family-border pb-6">
