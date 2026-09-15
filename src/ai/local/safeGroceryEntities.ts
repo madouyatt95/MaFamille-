@@ -41,13 +41,14 @@ const productPatterns = [...productByAlias.keys()].map(alias => new RegExp(`(?:^
 export const containsGroceryProduct = (text: string) => productPatterns.some(pattern => pattern.test(foldVoice(text)));
 export const stripArticle = (text: string) => text.trim().replace(/^(?:de l'|l'|d'|(?:du|de la|des|de|le|la|les|un|une)\s+)/i, '').trim();
 
-export const GROCERY_QUALIFIERS = ['sans sucre', 'sans lactose', 'bio', 'demi-écrémé', 'écrémé', 'entier', 'nature', 'à la fraise', 'à la vanille', 'au chocolat'] as const;
+export const GROCERY_QUALIFIERS = ['sans sucre ajouté', 'sans sucre', 'sans lactose', 'bio', 'demi-écrémé', 'écrémé', 'entier', 'nature', 'à la fraise', 'à la vanille', 'au chocolat'] as const;
 const MILK_TYPES: readonly string[] = ['demi-écrémé', 'écrémé', 'entier'];
 const FLAVOURS: readonly string[] = ['nature', 'à la fraise', 'à la vanille', 'au chocolat'];
 export function qualifyGroceryItem(item: SafeGroceryItem, qualifier: string): SafeGroceryItem | null {
   const label = GROCERY_QUALIFIERS.find(value => foldVoice(value) === foldVoice(qualifier));
   if (!label) return null;
-  const qualifiers = [...(item.qualifiers || []).filter(value => value !== label && !(MILK_TYPES.includes(label) && MILK_TYPES.includes(value)) && !(FLAVOURS.includes(label) && FLAVOURS.includes(value))), label].sort();
+  const sugar = ['sans sucre', 'sans sucre ajouté'];
+  const qualifiers = [...(item.qualifiers || []).filter(value => value !== label && !(sugar.includes(label) && sugar.includes(value)) && !(MILK_TYPES.includes(label) && MILK_TYPES.includes(value)) && !(FLAVOURS.includes(label) && FLAVOURS.includes(value))), label].sort();
   const productName = item.productName || item.name;
   return { ...item, productName, qualifiers, name: `${productName} ${qualifiers.join(' ')}` };
 }

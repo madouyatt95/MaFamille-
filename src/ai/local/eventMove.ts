@@ -3,7 +3,7 @@ import { readHouseholdSchedule } from './householdLabDates.ts';
 import { readFrenchNumber } from './frenchVoiceNumbers.ts';
 
 export type PilotEvent = { id: string; title: string; date_time: string | null; time: string | null; member_id: string | null; done: boolean | null };
-export type MoveRequest = { date?: string; search: string; minutes: number };
+export type MoveRequest = { date?: string; search: string; minutes: number; time?: string; memberId?: string };
 export function parseEventMove(raw: string, now: number, timezone: string): MoveRequest | null {
   const text = foldVoice(raw).replace(/[’]/g, "'").trim();
   const match = text.match(/^(decale|reporte|avance|deplace)\s+(.+?)\s+de\s+(.+?)\s+(minutes?|min|heures?)\s*[.!?]*$/);
@@ -17,7 +17,10 @@ export function parseEventMove(raw: string, now: number, timezone: string): Move
   return { date: schedule.date, search, minutes };
 }
 export function eventMoveCandidates(events: PilotEvent[], request: MoveRequest) {
-  return events.filter(event => !event.done && (!request.date || event.date_time?.slice(0, 10) === request.date) && (!request.search || foldVoice(event.title).includes(request.search)));
+  return events.filter(event => !event.done && (!request.date || event.date_time?.slice(0, 10) === request.date) && (!request.memberId || event.member_id === request.memberId) && (!request.search || foldVoice(event.title).includes(request.search)));
+}
+export function requestedEventTime(event: PilotEvent, request: MoveRequest) {
+  return request.time ?? movedTime(event, request.minutes);
 }
 export function movedTime(event: PilotEvent, minutes: number): string | null {
   if (!/^\d{2}:\d{2}$/.test(event.time || '') || !/^\d{4}-\d{2}-\d{2}$/.test(event.date_time || '')) return null;

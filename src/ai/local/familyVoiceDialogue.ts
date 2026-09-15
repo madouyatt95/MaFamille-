@@ -2,6 +2,7 @@ import { parseSafeGroceryVoiceV2, EMPTY_GROCERY_CONVERSATION, GROCERY_DIALOGUE_T
 import { foldVoice, normalizeSafeVoiceText, type SafeGroceryItem } from './safeGroceryEntities.ts';
 import { readEuroCents } from './frenchVoiceNumbers.ts';
 import { suggestGroceryTranscriptions } from './groceryHearing.ts';
+import { groceryQuantityQuestion, quantityChoice, ellipticalJuiceChoices } from './grocerySyntax.ts';
 
 export type LabExpense = { cents: number; currency: 'EUR'; label: string };
 export type LabUndoToken = { id: string; revision: number; signature: string; label: string; kind: 'add' | 'other'; scopeKey: string };
@@ -113,7 +114,7 @@ function parseFamilyLabVoiceCore(raw: string, previous: FamilyVoiceContext = emp
     }
   }
   if (context.grocery.pending && context.grocery.pending.kind !== 'confirmation') return answer('needs_clarification', context.grocery.pending.clarification);
-  if (!context.grocery.hasProposal && !context.expenses.length) return answer(grocery.status, grocery.clarification || grocery.explanation);
+  if (grocery.intent === 'shopping.summary' || !context.grocery.hasProposal && !context.expenses.length) return answer(grocery.status, grocery.clarification || grocery.explanation);
   return answer('proposed', `${grocery.explanation.includes('Exclus de cette demande') ? grocery.explanation + ' ' : ''}Relisez les propositions, puis confirmez l’ensemble une seule fois.`);
 }
 
@@ -130,6 +131,11 @@ export function parseFamilyLabVoice(raw: string, previous: FamilyVoiceContext = 
   if (options.isFinal === false || options.utteranceId && context.seen?.includes(options.utteranceId)) return respond('Transcription intermédiaire ou déjà traitée.', context, 'ignored');
   if (!t || raw.length > 500) return respond('Reformulez une phrase courte.', emptyFamilyVoiceContext(), 'rejected');
   if (/^(?:stop|arrete|coupe le micro|arrete le dialogue)$/.test(t)) return parseFamilyLabVoiceCore(raw, emptyFamilyVoiceContext(), options);
+  if (!context.hearing && !options.hearingChosen && !options.alternatives?.length && !context.grocery.pending) {
+    const selected = context.grocery.proposal.find(item => item.name === context.grocery.selectedName);
+    const choices = ellipticalJuiceChoices(raw, selected);
+    if (choices.length) return respond('Parlez-vous d’un jus ou du fruit ? Choisissez la formulation souhaitée.', { ...context, scopeKey, expiresAt: context.expiresAt ?? now + GROCERY_DIALOGUE_TTL_MS, hearing: { choices, previous: context } });
+  }
   if (!context.hearing && !options.hearingChosen && !options.alternatives?.length && ['courses', 'unknown'].includes(detectProtectedVoiceDomain(raw))) {
     const suggestions = suggestGroceryTranscriptions(raw, options.vocabulary);
     if (suggestions.length) {
@@ -147,14 +153,16 @@ export function parseFamilyLabVoice(raw: string, previous: FamilyVoiceContext = 
     }
     if (unique.size > 1) {
       const choices = [...unique.values()];
-      return respond(`J’ai entendu plusieurs possibilités : ${choices.map((value, i) => `${i + 1}. « ${value} »`).join(' ; ')}. Laquelle choisissez-vous ?`, { ...context, scopeKey, expiresAt: context.expiresAt ?? now + GROCERY_DIALOGUE_TTL_MS, hearing: { choices, previous: context } });
+      const quantityQuestion = groceryQuantityQuestion(choices, options.vocabulary);
+      return respond(quantityQuestion ? `${quantityQuestion} Répondez avec l’unité ou en lettres, ou choisissez une phrase à l’écran.` : `J’ai entendu plusieurs possibilités : ${choices.map((value, i) => `${i + 1}. « ${value} »`).join(' ; ')}. Laquelle choisissez-vous ?`, { ...context, scopeKey, expiresAt: context.expiresAt ?? now + GROCERY_DIALOGUE_TTL_MS, hearing: { choices, previous: context } });
     }
   }
   if (CANCEL.test(t)) return parseFamilyLabVoiceCore(raw, emptyFamilyVoiceContext(), options);
   if (context.hearing) {
     const choices = context.hearing.choices;
+    const amountIndex = !/^\d+$/.test(t) ? quantityChoice(t.replace(/^quantite\s+/, ''), choices, options.vocabulary) : -1;
     const ordinal = t.match(/^(?:(?:le|la|choix|option)\s+)?(premier|premiere|deuxieme|second|seconde|troisieme|quatrieme|cinquieme|[1-5])$/);
-    const index = ordinal ? ({ premier: 0, premiere: 0, deuxieme: 1, second: 1, seconde: 1, troisieme: 2, quatrieme: 3, cinquieme: 4 }[ordinal[1]] ?? Number(ordinal[1]) - 1) : choices.findIndex(value => foldVoice(value) === t);
+    const index = amountIndex >= 0 ? amountIndex : ordinal ? ({ premier: 0, premiere: 0, deuxieme: 1, second: 1, seconde: 1, troisieme: 2, quatrieme: 3, cinquieme: 4 }[ordinal[1]] ?? Number(ordinal[1]) - 1) : choices.findIndex(value => foldVoice(value) === t);
     if (index < 0 || index >= choices.length || !Number.isInteger(index)) return respond(`Choisissez un numéro entre 1 et ${choices.length}, ou dites annule. Un simple « oui » ne choisit pas une transcription.`);
     return parseFamilyLabVoice(choices[index], context.hearing.previous, { ...options, now, alternatives: undefined, hearingChosen: true });
   }

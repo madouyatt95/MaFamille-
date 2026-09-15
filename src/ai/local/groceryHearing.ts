@@ -1,6 +1,6 @@
 import { foldVoice, normalizeSafeVoiceText, validCustomName } from './safeGroceryEntities.ts';
 
-const protectedTerms = /[€$£\d]|\b(?:euros?|prix|budget|depense|rdv|rendez|medecin|medicament|traitement|message|envoie|appelle|ouvre|devoir|voyage)\b/;
+const protectedTerms = /[€$£\d]|\b(?:euros?|prix|budget|depenses?|rdv|rendez|medecins?|medicaments?|traitements?|vaccins?|ordonnances?|allergies?|symptomes?|messages?|envoie|appelle|ouvre|devoirs?|voyage)\b/;
 const distance = (a: string, b: string) => {
   const row = Array.from({ length: b.length + 1 }, (_, index) => index);
   for (let i = 1; i <= a.length; i++) {

@@ -4,7 +4,8 @@ import { ArrowRight, Check, RefreshCw, X } from 'lucide-react';
 import { loadVoicePilot, commitVoicePilot, type PilotSnapshot } from '../../services/voicePilotService';
 import { pilotKey, pilotList, pilotAfter } from '../../ai/local/voicePilot';
 import { parseFamilyLabVoice, emptyFamilyVoiceContext, type FamilyVoiceContext, type FamilyVoiceResult } from '../../ai/local/familyVoiceDialogue';
-import { parseEventMove, eventMoveCandidates, movedTime, type MoveRequest } from '../../ai/local/eventMove';
+import { eventMoveCandidates, requestedEventTime, type MoveRequest } from '../../ai/local/eventMove';
+import { advanceEventMove, type EventMoveDraft } from '../../ai/local/eventMoveDialogue';
 import { describeGroceryChanges } from '../../ai/local/labActionSummary';
 import { detectProtectedVoiceDomain } from '../../ai/local/safeGroceryParserV2';
 import { VoiceBench, type VoiceBenchObservation } from '../../dev/VoiceBench';
@@ -15,6 +16,7 @@ export default function VoicePilotPanel({ initialText, foyerId, memberId, scope,
   const [snapshot, setSnapshot] = useState<PilotSnapshot>();
   const [result, setResult] = useState<FamilyVoiceResult>();
   const [move, setMove] = useState<MoveRequest | null>(null);
+  const [moveReady, setMoveReady] = useState(false);
   const [selected, setSelected] = useState('');
   const [durations, setDurations] = useState<Record<string, number>>({});
   const [text, setText] = useState('');
@@ -24,6 +26,7 @@ export default function VoicePilotPanel({ initialText, foyerId, memberId, scope,
   const [finished, setFinished] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const context = useRef<FamilyVoiceContext>(emptyFamilyVoiceContext());
+  const agendaContext = useRef<EventMoveDraft | null>(null);
   const current = useRef<PilotSnapshot | undefined>(undefined);
   const saving = useRef(false);
   const generation = useRef(0);
@@ -37,15 +40,24 @@ export default function VoicePilotPanel({ initialText, foyerId, memberId, scope,
     let message = 'Actualisez les données avant de poursuivre.'; let status = 'rejected';
     if (state && !saving.current && Date.now() - state.loadedAt < 120000) {
       const domain = detectProtectedVoiceDomain(phrase);
-      const agendaRequest = parseEventMove(phrase, Date.now(), timezone);
-      setResult(undefined); setMove(null); setSelected(''); setDurations({});
-      if (agendaRequest) {
-        if (alternatives?.some(value => value.trim() !== phrase.trim())) message = 'Plusieurs transcriptions possibles. Saisissez la phrase exacte pour déplacer le rendez-vous.';
-        else { context.current = emptyFamilyVoiceContext(); setMove(agendaRequest); message = 'Choisissez le rendez-vous à déplacer, puis vérifiez les horaires et les durées.'; status = 'needs_clarification'; }
+      const previousAgenda = agendaContext.current;
+      const agendaAnswer = advanceEventMove(phrase, previousAgenda, state.events, state.members || [], Date.now(), timezone, state.scope);
+      setResult(undefined); setMove(null); setMoveReady(false);
+      if (agendaAnswer) {
+        context.current = emptyFamilyVoiceContext();
+        if (alternatives?.some(value => value.trim() !== phrase.trim())) { agendaContext.current = null; setSelected(''); message = 'Plusieurs transcriptions possibles. Saisissez la phrase exacte pour déplacer le rendez-vous.'; }
+        else {
+          agendaContext.current = agendaAnswer.draft;
+          setMoveReady(agendaAnswer.ready);
+          setMove(agendaAnswer.draft?.request || null);
+          setSelected(previous => agendaAnswer.candidates.length === 1 ? agendaAnswer.candidates[0].id : agendaAnswer.draft?.expiresAt === previousAgenda?.expiresAt && agendaAnswer.candidates.some(row => row.id === previous) ? previous : '');
+          message = agendaAnswer.message; status = agendaAnswer.draft ? 'needs_clarification' : 'cancelled';
+        }
       } else if (!['courses', 'unknown'].includes(domain)) {
         context.current = emptyFamilyVoiceContext();
         message = domain === 'budget' ? 'Aucune proposition Courses conservée. Fermez cet essai, puis utilisez le micro principal pour le Budget habituel.' : 'Cette demande reste dans le module habituel. Aucun changement enregistré.';
       } else {
+        agendaContext.current = null; setSelected(''); setDurations({});
         try {
           const next = parseFamilyLabVoice(phrase, context.current, { scopeKey: state.scope, list: pilotList(state.groceries), now: Date.now(), utteranceId: crypto.randomUUID(), alternatives });
           if (next.expenses.length || next.receipt?.expenses.length) {
@@ -62,7 +74,7 @@ export default function VoicePilotPanel({ initialText, foyerId, memberId, scope,
     return { transcript: phrase, recognitionMs, parseMs: performance.now() - start, interpretation: message, status };
   }, [timezone]);
   const load = useCallback(async () => {
-    const token = ++generation.current; current.current = undefined; setSnapshot(undefined); setResult(undefined); setMove(null); setSelected(''); setDurations({}); context.current = emptyFamilyVoiceContext(); setBlocked(false); setBusy(true);
+    const token = ++generation.current; current.current = undefined; setSnapshot(undefined); setResult(undefined); setMove(null); setSelected(''); setDurations({}); context.current = emptyFamilyVoiceContext(); agendaContext.current = null; setBlocked(false); setBusy(true);
     try {
       const next = await loadVoicePilot(foyerId, memberId);
       if (token !== generation.current) return;
@@ -96,7 +108,7 @@ export default function VoicePilotPanel({ initialText, foyerId, memberId, scope,
     return () => { clearTimeout(start); invalidate(); subscription?.data.subscription.unsubscribe(); window.removeEventListener('storage', check); window.removeEventListener('focus', check); window.removeEventListener('mf-voice-pilot-change', check); window.removeEventListener('keydown', escape); document.body.style.overflow = oldOverflow; previousFocus?.focus(); };
   }, [load, memberId]);
   const event = snapshot?.events.find(row => row.id === selected);
-  const nextTime = event && move ? movedTime(event, move.minutes) : null;
+  const nextTime = event && move && moveReady ? requestedEventTime(event, move) : null;
   const candidates = snapshot && move ? eventMoveCandidates(snapshot.events, move) : [];
   const nearby = event && snapshot ? snapshot.events.filter(row => {
     if (row.done || !row.date_time || !event.date_time) return false;
@@ -130,8 +142,8 @@ export default function VoicePilotPanel({ initialText, foyerId, memberId, scope,
           {!move && <ul aria-label="Modifications proposées" className="space-y-2 text-sm">{changes.map((line, i) => <li className="break-words" key={i}>{line}</li>)}</ul>}
           {result?.context.hearing?.choices.map((choice, index) => <button key={choice} disabled={listening} onClick={() => submit(String(index + 1))} className="block min-h-11 w-full break-words rounded-lg border border-family-border p-2 text-left text-sm">{index + 1}. {choice}</button>)}
           {!result?.receipt && <form className="flex items-end gap-2" onSubmit={e => { e.preventDefault(); if (text.trim()) submit(text); }}><label className="min-w-0 flex-1 text-sm">Précision ou correction<textarea autoFocus aria-label="Précision ou correction" maxLength={500} value={text} onChange={e => setText(e.target.value)} className="app-field mt-1 w-full rounded-lg p-2" /></label><button title="Interpréter" aria-label="Interpréter" disabled={!text.trim() || listening} className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-family-border disabled:opacity-40"><ArrowRight size={18} /></button></form>}
-          {!move && !result?.receipt && <VoiceBench compact realProposal onTranscript={submit} onListeningChange={setListening} />}
-          {result?.status === 'proposed' && <button disabled={listening} onClick={() => submit('confirme')} className="flex min-h-11 items-center gap-2 text-sm"><Check size={16} />Confirmer la proposition</button>}
+          {!result?.receipt && <VoiceBench compact realProposal onTranscript={submit} onListeningChange={setListening} />}
+          {result?.status === 'proposed' && result.context.grocery.hasProposal && <button disabled={listening} onClick={() => submit('confirme')} className="flex min-h-11 items-center gap-2 text-sm"><Check size={16} />Confirmer la proposition</button>}
           {(result?.receipt || move && event) && <button disabled={!canSave} onClick={() => void save()} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-family-primary px-3 text-sm font-bold text-white disabled:opacity-40"><Check size={18} />Enregistrer dans mon foyer</button>}
         </>}
         {(!snapshot || blocked) && !busy && <button onClick={() => void load()} className="flex min-h-11 items-center gap-2 text-sm"><RefreshCw size={16} />Actualiser et reprendre la demande</button>}
