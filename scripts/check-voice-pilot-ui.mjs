@@ -30,24 +30,21 @@ try {
     });
     const open = async (phrase) => page.goto(`${base}/tests/fixtures/voice-pilot.html?theme=${theme}${phrase ? `&phrase=${encodeURIComponent(phrase)}` : ''}`);
     await open();
-    await page.getByRole('button', { name: 'Confirmer la proposition', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Valider et enregistrer', exact: true }).waitFor();
     assert.equal(commits.length, 0);
     assert.match(await page.getByRole('list', { name: 'Modifications proposées' }).innerText(), /fraise/);
     const box = await page.getByRole('dialog').boundingBox();
     assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= page.viewportSize().width + 1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await page.screenshot({ path: `${out}${theme}.png`, fullPage: true });
-    await page.getByRole('button', { name: 'Confirmer la proposition', exact: true }).click();
-    assert.equal(commits.length, 0);
-    await page.getByRole('button', { name: 'Enregistrer dans mon foyer', exact: true }).click();
+    await page.getByRole('button', { name: 'Valider et enregistrer', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'Enregistré dans votre foyer.' }).waitFor();
     assert.equal(commits.length, 1); assert.equal(commits[0].action.after.length, 2);
     assert.equal(commits[0].action.after[0].quantity, '1 pack de 6');
     mode = 'conflict'; await open('ajoute du lait');
-    await page.getByRole('button', { name: 'Confirmer la proposition', exact: true }).click();
-    await page.getByRole('button', { name: 'Enregistrer dans mon foyer', exact: true }).click();
+    await page.getByRole('button', { name: 'Valider et enregistrer', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'La liste a changé' }).waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Enregistrer dans mon foyer', exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Valider et enregistrer', exact: true }).count(), 0);
     const sent = commits.length;
     mode = 'ok'; await open('note 25 euros de courses');
     await page.getByRole('status').filter({ hasText: 'Budget habituel' }).waitFor();
@@ -56,7 +53,7 @@ try {
     await page.getByLabel('Rendez-vous à déplacer').selectOption('rdv');
     await page.getByLabel('Durée de Dentiste').fill('30');
     assert.match(await page.getByRole('dialog').innerText(), /10:00 → 10:30/);
-    await page.getByRole('button', { name: 'Enregistrer dans mon foyer', exact: true }).click();
+    await page.getByRole('button', { name: 'Valider et enregistrer', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'Enregistré dans votre foyer.' }).waitFor();
     assert.equal(commits.at(-1).action.kind, 'event'); assert.equal(commits.at(-1).action.time, '10:30');
     mode = 'missing'; await open();
@@ -66,5 +63,5 @@ try {
     await context.close();
   }
   assert.deepEqual(failures, []);
-  console.log('UI OK: sombre/clair/sepia, desktop/mobile, confirmation en deux temps, erreur CAS, Budget sans ecriture, deplacement choisi, migration absente et desactivation. Reseau hors localhost bloque.');
+  console.log('UI OK: sombre/clair/sepia, desktop/mobile, validation unique, erreur CAS, Budget sans ecriture, deplacement choisi, migration absente et desactivation. Reseau hors localhost bloque.');
 } finally { await browser.close(); }

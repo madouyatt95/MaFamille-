@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pilotList, pilotAfter, shouldUseVoicePilot, pilotScope, pilotKey } from '../src/ai/local/voicePilot.ts';
+import { pilotList, pilotAfter, shouldUseVoicePilot, pilotScope, pilotKey, pilotPartition, preservedTarget, pilotMealIntent, rebasePilotGroceries } from '../src/ai/local/voicePilot.ts';
 import { parseSafeGroceryVoiceV2 } from '../src/ai/local/safeGroceryParserV2.ts';
 import { eventMoveCandidates, movedTime, parseEventMove } from '../src/ai/local/eventMove.ts';
 
@@ -25,6 +25,39 @@ test('edition conserve id et laisse les donnees non modifiees intactes', () => {
   assert.deepEqual(after[1], rows[1]);
   assert.throws(() => pilotAfter(rows, [{ ...list[0], recordId: 'missing' }], () => 'new'), /inconnu/);
   assert.throws(() => pilotList([...rows, { ...rows[0], id: 'duplicate' }]), /doublons/);
+});
+test('article historique non interpretable : intact et sans bloquer un nouvel achat', () => {
+  const rows = [{ id: 'a', name: 'un diner pour', category: null, quantity: '2', checked: false }];
+  const before = structuredClone(rows);
+  assert.deepEqual(pilotList(rows), []);
+  assert.deepEqual(pilotAfter(rows, [], () => 'new'), rows);
+  const parsed = parseSafeGroceryVoiceV2('ajoute un pain', undefined, { list: pilotList(rows) });
+  const after = pilotAfter(rows, parsed.items, () => 'new');
+  assert.equal(after.length, 2);
+  assert.deepEqual(after[1], rows[0]);
+  assert.deepEqual(rows, before);
+});
+test('articles preserves identifies uniquement quand ils sont vises', () => {
+  const rows = [{ id: 'a', name: 'Personnes', category: null, quantity: '2', checked: null }];
+  assert.equal(pilotPartition(rows).preserved.length, 1);
+  assert.equal(preservedTarget('retire Personnes', rows)?.id, 'a');
+  assert.equal(preservedTarget('ajoute deux pains', rows), undefined);
+});
+test('objectifs repas et menus ne routent pas une depense vers les courses', () => {
+  assert.equal(pilotMealIntent('prépare un dîner pour deux personnes'), 'meal');
+  assert.equal(pilotMealIntent('on mange quoi ce soir ?'), 'menu');
+  assert.equal(pilotMealIntent("j'ai payé 25 euros au restaurant"), null);
+  assert.equal(pilotMealIntent('ajoute deux tomates'), null);
+  assert.equal(shouldUseVoicePilot("j'ai payé 25 euros au restaurant", true, false, false), false);
+});
+test('reprise conserve les changements independants et refuse un conflit cible', () => {
+  const pain = { id: 'pain', name: 'Pain', quantity: '2', category: 'Autres', checked: false };
+  const lait = { id: 'lait', name: 'Lait', quantity: '1', category: 'Frais', checked: false };
+  const desired = [{ ...pain, quantity: '1' }];
+  assert.deepEqual(rebasePilotGroceries([pain], desired, [pain, lait]), [desired[0], lait]);
+  assert.throws(() => rebasePilotGroceries([pain], desired, [{ ...pain, quantity: '4' }]), /a changé/);
+  assert.throws(() => rebasePilotGroceries([pain], desired, []), /a changé/);
+  assert.throws(() => rebasePilotGroceries([], [pain], [{ ...pain, id: 'other' }]), /déjà présent/);
 });
 test('deplacement rendez vous selection explicite et horaires bornes', () => {
   const now = Date.parse('2026-09-14T10:00:00Z');

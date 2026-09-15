@@ -238,6 +238,15 @@ export function parseSafeGroceryVoiceV2(rawText: string, inputContext: SafeGroce
     return confirm();
   }
 
+  const meal = t.match(/^(?:prepare|preparer|prevois|prevoir|organise|organiser)(?:\s+(?:un|une|le|la|des))?\s+(diner|dejeuner|souper|repas)(?:\s+pour\s+(.+?)\s+personnes?)?$/);
+  if (meal) {
+    const people = meal[2] ? readGroceryAmount(meal[2]) : null;
+    if (people && (!people.explicit || !people.valid || people.rest || people.unitExplicit || !Number.isInteger(people.amount.value))) return clarify('Pour combien de personnes souhaitez-vous prévoir ce repas ?', 'nombre de personnes');
+    context.planning = { people: people?.amount.value, expectedCategory: null };
+    const question = `Quels ingrédients souhaitez-vous prévoir${people ? ` pour ${people.amount.value} personnes` : ''} ? Pour une idée de menu, utilisez Éco-Chef. Aucun article ajouté.`;
+    return clarify(question, 'produits', { kind: 'products', intent: 'shopping.plan', expectedCategory: null, clarification: question });
+  }
+
   const scopeQuestion = groceryScopeQuestion(text);
   if (scopeQuestion) return clarify(scopeQuestion, 'destination de la demande');
 
@@ -356,6 +365,16 @@ export function parseSafeGroceryVoiceV2(rawText: string, inputContext: SafeGroce
     const parsed = parseGroceryEntities(stripArticle(replacement[2]), options.vocabulary);
     if (parsed.error || parsed.items.length !== 1) return clarify(parsed.error || 'Indiquez un seul produit de remplacement.', 'produit de remplacement');
     return propose({ kind: 'replace', target: stripArticle(replacement[1]), items: parsed.items });
+  }
+
+  // A bare quantity for an existing draft item is a correction, not another purchase.
+  if (context.hasProposal && !context.pending) {
+    const amount = readGroceryAmount(text);
+    const named = parseGroceryEntities(text, options.vocabulary);
+    if (amount.explicit && amount.valid && amount.rest && !named.error && !named.unknown.length && named.items.length === 1) {
+      const target = current.find(item => foldVoice(item.name) === foldVoice(named.items[0].name));
+      if (target) return propose({ kind: 'set', target: target.name, items: [], amount: amount.amount, inheritUnit: !amount.unitExplicit });
+    }
   }
 
   const quantity = t.match(/^(?:non\s+)?(?:finalement|plutot|mets?(?: a)?|ajoute encore|rajoute encore)\s+(.+)$/);

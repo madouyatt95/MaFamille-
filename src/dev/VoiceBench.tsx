@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Mic, Pause, Play, Square, Trash2 } from 'lucide-react';
+import { Mic, Pause, Play, Square, Trash2, RotateCcw } from 'lucide-react';
 import { getLabRecognition, startLabRecognition } from './labSpeechRecognition';
 import { transcriptionMetrics } from '../ai/local/voiceLabMetrics';
 import { startLabHandsFree, type HandsFreePhase } from './labHandsFree';
@@ -63,7 +63,7 @@ export function VoiceBench({ onTranscript, onListeningChange, compact = false, r
         final: (text, elapsed, alternatives) => setObservation(callback.current(text, elapsed, alternatives)),
         error: setError,
         end: () => { controller.current = null; setListening(false); setStopping(false); setInterim(''); },
-      });
+      }, () => performance.now(), compact ? 1600 : undefined);
     } catch (cause) { setListening(false); setError(cause instanceof Error ? cause.message : 'Microphone indisponible.'); }
   };
   return <section className="mt-4 border-t border-family-border pt-4" aria-label="Banc d’essai vocal">
@@ -75,6 +75,7 @@ export function VoiceBench({ onTranscript, onListeningChange, compact = false, r
     {handsFree && <p className="mt-2 text-xs text-family-text-secondary">Questions lues à voix haute, puis reprise de l’écoute. Maximum 8 tours et 2 minutes. {realProposal ? 'Enregistrement uniquement après validation avec le bouton.' : 'Aucune application automatique à la simulation.'}</p>}
     {!compact && <label className="mt-3 block text-xs">Phrase attendue (facultatif)<input aria-label="Phrase attendue" maxLength={500} value={expected} disabled={listening} onChange={event => setExpected(event.target.value)} className="app-field mt-1 min-h-10 w-full rounded-lg px-2" /></label>}
     <div className="mt-3 flex items-center gap-3">
+      {compact && <button type="button" title={listening ? 'Libérer le micro' : 'Relancer le micro'} aria-label={listening ? 'Libérer le micro' : 'Relancer le micro'} disabled={!supported || !consent} onClick={() => { cancel(); if (!listening) start(); }} className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-family-border disabled:opacity-40"><RotateCcw size={18} /></button>}
       <button type="button" title={listening ? handsFree ? 'Arrêter le dialogue vocal' : 'Terminer la phrase' : 'Démarrer le micro de test'} aria-label={listening ? handsFree ? 'Arrêter le dialogue vocal' : 'Terminer la phrase' : 'Démarrer le micro de test'} disabled={!supported || !consent || stopping && !handsFree} onClick={() => { if (listening) { if (handsFree) cancel(); else { setStopping(true); controller.current?.stop(); } } else start(); }} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-family-border disabled:opacity-40">{listening ? <Square size={18} /> : <Mic size={18} />}</button>
       <p role="status" className="min-w-0 break-words text-xs">{stopping ? 'Fin de transcription…' : listening ? phase === 'paused' && handsFree ? 'Dialogue en pause · micro coupé' : phase === 'speaking' && handsFree ? 'Lecture de la question · micro coupé' : interim || 'Écoute en cours…' : error || 'Micro arrêté'}</p>
       {listening && handsFree && <button title={phase === 'paused' ? 'Reprendre le dialogue' : 'Mettre en pause'} aria-label={phase === 'paused' ? 'Reprendre le dialogue' : 'Mettre en pause'} onClick={() => phase === 'paused' ? dialogue.current?.resume() : dialogue.current?.pause()} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-family-border">{phase === 'paused' ? <Play size={16} /> : <Pause size={16} />}</button>}

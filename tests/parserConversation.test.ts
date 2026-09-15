@@ -13,11 +13,30 @@ function dialogue(turns: string[], options: FamilyVoiceOptions = {}) {
     context = result.context; return result;
   });
 }
+test('preparer un diner est une planification, jamais un produit', () => {
+  for (const phrase of ['prepare un diner pour deux personnes', 'prépare un dîner pour 2 personnes', 'prévois un déjeuner pour trois personnes', 'organise un repas']) {
+    const first = dialogue([phrase])[0];
+    assert.equal(first.status, 'needs_clarification');
+    assert.match(first.message, /Quels ingrédients/);
+    assert.equal(first.context.grocery.hasProposal, undefined);
+    assert.equal(first.receipt, undefined);
+  }
+  const results = dialogue(['prépare un dîner pour deux personnes', 'deux tomates et un pain', 'confirme']);
+  assert.match(results[0].message, /2 personnes/);
+  assert.equal(results[0].context.grocery.planning?.people, 2);
+  assert.deepEqual(results[2].receipt!.after.map(item => item.name), ['Tomates', 'Pain']);
+});
 test('structure : politesse, quantite postposee, corrections successives et qualification ciblee', () => {
   const results = dialogue(['peux-tu ajouter du lait, trois bouteilles', 'deux finalement', 'le lait sans lactose', 'confirme']);
   assert.equal(results.at(-1)?.status, 'confirmed');
   const items = results.at(-1)!.receipt!.after;
   assert.deepEqual(items.map(item => [item.name, item.amount]), [['Lait sans lactose', { value: 2, unit: 'bottle' }]]);
+});
+test('quantite nommee seule corrige la proposition, ajout explicite reste cumulatif', () => {
+  const corrected = dialogue(['ajoute trois bouteilles de lait et deux pains', '1 pain', 'confirme']).at(-1)!;
+  assert.deepEqual(corrected.receipt!.after.map(item => [item.name, item.amount.value]), [['Lait', 3], ['Pain', 1]]);
+  const added = dialogue(['ajoute deux pains', 'ajoute un pain', 'confirme']).at(-1)!;
+  assert.equal(added.receipt!.after[0].amount.value, 3);
 });
 test('une correction conserve les autres produits et le nouveau referent apres remplacement', () => {
   const last = dialogue(['ajoute trois jus d orange et deux pains', 'remplace le pain par du lait', 'deux finalement', 'le lait sans lactose']).at(-1)!;

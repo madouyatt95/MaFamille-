@@ -20,7 +20,8 @@ les cas de regression locaux et le deplacement confirme d'un rendez-vous.
    puis Mon foyer et charger son contexte.
 3. Activer explicitement « Mode d'essai du micro PWA ».
 4. Revenir dans l'application et utiliser le micro principal. Relire la
-   proposition, la confirmer, puis cliquer sur « Enregistrer dans mon foyer ».
+   proposition puis cliquer sur « Valider et enregistrer ». Une ambiguite
+   de produit doit d'abord etre levee ; aucun doute n'est confirme implicitement.
 
 Sans migration, l'activation est refusee. La desactivation depuis le labo ou
 « Revenir au micro habituel » supprime uniquement le choix local : elle ne
@@ -28,15 +29,23 @@ supprime pas les donnees du foyer. iOS conserve le parcours existant.
 
 ## Bornes et garanties
 
-- Instantane expire apres deux minutes. Un autre changement de liste ou
-  d'agenda bloque l'ecriture au lieu d'ecraser des modifications recentes.
+- Instantane expire apres deux minutes. La proposition reste en memoire de la
+  fenetre ; une actualisation revalide les donnees avant la reprise. Aucun
+  brouillon vocal n'est conserve apres fermeture. Si les donnees ont change,
+  la reprise d'une clarification exige de recommencer avec les donnees actuelles.
+- Avant l'enregistrement Courses, une lecture fraiche conserve les ajouts
+  independants d'un autre appareil et demande une nouvelle validation. Si un
+  article cible a change, l'ecriture est bloquee. Le serveur reste l'arbitre
+  atomique de tout conflit survenant apres cette lecture.
 - Chaque commande dispose d'un identifiant de recu. Son rejeu identique
   n'applique pas l'action deux fois. Les recus ne contiennent ni audio ni
   phrases, sont limites a 200 par foyer et purges lors d'une utilisation
   ulterieure apres un jour. Le dernier lot reste stocke tant que le foyer
   n'utilise plus le pilote.
 - Au maximum 200 produits charges et 40 lignes modifiees par commande.
-  Les listes avec doublons ou formats ininterpretables restent dans Courses.
+  Les articles ininterpretables sont exclus du parseur et reinseres strictement
+  inchanges dans la proposition envoyee. Une demande les ciblant est refusee.
+  Les listes avec doublons restent hors de cet essai.
 - Les rendez-vous natifs dates et horaires precis peuvent etre avances ou
   retardes le meme jour. Les imports ICS sont consultes pour les conflits,
   jamais modifies. Choix du rendez-vous obligatoire, meme pour un seul resultat.
@@ -47,9 +56,28 @@ supprime pas les donnees du foyer. iOS conserve le parcours existant.
 - Une courte transaction verrouille les tables concernees pour proteger
   egalement des ecritures historiques concurrentes (attente maximale 2 s).
   Le pilote doit rester restreint avant toute generalisation a fort trafic.
-- Budget, sante, messagerie et navigation ne sont pas executes par ce pilote.
+- Budget, sante et messagerie ne sont pas executes par ce pilote.
+  Une demande de repas ou de menu propose d'ouvrir Courses et Eco-Chef, sans
+  creer de produit, generer de recette ni appeler une API. Les commandes
+  budgetaires conservent leur routage historique.
   Un changement de compte/profil, une erreur ou un doute n'autorise aucune
   execution automatique d'une proposition.
+
+## Ergonomie PWA (verification locale)
+
+- Validation unique, bouton fixe hors de la zone de defilement.
+- Une quantite nommee seule dans une proposition corrige cette quantite ;
+  « ajoute » reste cumulatif. Aucune ambiguite resolue par une ecriture implicite.
+- Micro de precision : fin de phrase apres silence, liberation manuelle,
+  reprise apres erreur. Passage en arriere-plan et fermeture arretent l'ecoute.
+- Controle navigateur sur la fixture `tests/fixtures/voice-pilot.html` servie
+  avec `tests/fixtures/voice-pilot.vite.ts` : article Personnes conserve,
+  correction 1 pain, validation unique, nouvelle demande, expiration puis
+  reprise, ajout concurrent conserve apres relecture, routage menu.
+- Tests de controleur vocal avec reconnaissance simulee : pauses, fin tardive,
+  erreur, delai depasse, correction et nouvelle ecoute. Le comportement audio
+  reel Safari/iPhone reste a verifier sur appareil ; aucune publication ni
+  validation Supabase distante n'est impliquee par ces tests locaux.
 
 ## Retours et validation
 

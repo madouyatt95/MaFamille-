@@ -6294,8 +6294,11 @@ function App() {
       recognition.lang = 'fr-FR';
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
+      let receivedVoiceResult = false;
 
       recognition.onresult = (event: LooseValue) => {
+        if (!isNativeApp && voiceRecognitionRef.current !== recognition) return;
+        receivedVoiceResult = true;
         if (voiceInactivityTimerRef.current) {
           clearTimeout(voiceInactivityTimerRef.current);
         }
@@ -6325,13 +6328,21 @@ function App() {
       };
 
       recognition.onerror = (event: LooseValue) => {
+        if (!isNativeApp && voiceRecognitionRef.current !== recognition) return;
         console.error("Vocal search error", event.error);
         setVoiceTranscript("🎙️ Impossible d'écouter votre commande. Réessayer.");
         setVoiceWave(false);
         setVoiceState('error');
+        if (!isNativeApp) {
+          voiceActiveRef.current = false;
+          voiceRecognitionRef.current = null;
+          recognition.onresult = null; recognition.onerror = null; recognition.onend = null;
+          try { recognition.abort(); } catch { /* Recognition already ended. */ }
+        }
       };
 
       recognition.onend = () => {
+        if (!isNativeApp && voiceRecognitionRef.current !== recognition) return;
         setVoiceWave(false);
         const isConversational = voiceContextRef.current && voiceContextRef.current.pendingAction !== 'none';
         if (voiceActiveRef.current && isConversational && (voiceStateRef.current === 'listening' || voiceStateRef.current === 'asking_missing_field' || voiceStateRef.current === 'waiting_for_answer')) {
@@ -6342,6 +6353,10 @@ function App() {
             // Recognition may already be active.
           }
         }
+        if (!isNativeApp && !receivedVoiceResult && !isConversational) {
+          voiceActiveRef.current = false;
+          setVoiceActive(false); setVoiceState('idle');
+        }
       };
 
       recognition.start();
@@ -6351,6 +6366,27 @@ function App() {
       setVoiceTranscript("🎙️ Impossible d'écouter votre commande. Réessayer.");
     }
   };
+
+  useEffect(() => {
+    if (isNativeApp) return;
+    const release = () => {
+      voiceActiveRef.current = false;
+      const recognition = voiceRecognitionRef.current;
+      voiceRecognitionRef.current = null;
+      if (recognition) {
+        recognition.onresult = null; recognition.onerror = null; recognition.onend = null;
+        try { recognition.abort(); } catch { /* Already ended. */ }
+      }
+      if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
+      if (voiceInactivityTimerRef.current) clearTimeout(voiceInactivityTimerRef.current);
+    };
+    const hidden = () => {
+      if (!document.hidden) return;
+      release(); setVoiceActive(false); setVoiceState('idle'); setVoiceWave(false);
+    };
+    document.addEventListener('visibilitychange', hidden);
+    return () => { document.removeEventListener('visibilitychange', hidden); release(); };
+  }, [isNativeApp]);
 
   useEffect(() => {
     if (!pendingQuickMicro) return;
@@ -8471,7 +8507,15 @@ function App() {
             voiceContextRef.current = null; voiceActiveRef.current = false;
             setVoiceContext(null); setVoiceActive(false); setVoiceState('idle');
             if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
-            voiceRecognitionRef.current?.abort();
+            if (voiceInactivityTimerRef.current) clearTimeout(voiceInactivityTimerRef.current);
+            const previousRecognition = voiceRecognitionRef.current;
+            voiceRecognitionRef.current = null;
+            if (previousRecognition) {
+              previousRecognition.onresult = null;
+              previousRecognition.onerror = null;
+              previousRecognition.onend = null;
+              try { previousRecognition.abort(); } catch { /* The browser may have already ended this session. */ }
+            }
             setVoicePilotRequest({ id: crypto.randomUUID(), text: rawInputText, foyerId: foyer.id, memberId: ownProfile.id, scope });
             return;
           }
@@ -15148,7 +15192,7 @@ function App() {
 
       /></Suspense>}
 
-      {voicePilotRequest && !isNativeApp && user && foyer?.id === voicePilotRequest.foyerId && activeMemberId === voicePilotRequest.memberId && <Suspense fallback={<div role="status" className="fixed inset-0 z-[100000] grid place-items-center bg-black/70 text-white">Ouverture de la demande…</div>}><VoicePilotPanel key={voicePilotRequest.id} initialText={voicePilotRequest.text} foyerId={voicePilotRequest.foyerId} memberId={voicePilotRequest.memberId} scope={voicePilotRequest.scope} onClose={() => setVoicePilotRequest(null)} onSaved={() => { void loadFoyerData(voicePilotRequest.foyerId); }} /></Suspense>}
+      {voicePilotRequest && !isNativeApp && user && foyer?.id === voicePilotRequest.foyerId && activeMemberId === voicePilotRequest.memberId && <Suspense fallback={<div role="status" className="fixed inset-0 z-[100000] grid place-items-center bg-black/70 text-white">Ouverture de la demande…</div>}><VoicePilotPanel key={voicePilotRequest.id} initialText={voicePilotRequest.text} foyerId={voicePilotRequest.foyerId} memberId={voicePilotRequest.memberId} scope={voicePilotRequest.scope} onClose={() => setVoicePilotRequest(null)} onOpenMeals={() => { setVoicePilotRequest(null); setActiveTab('menu'); setActiveModule('courses'); }} onSaved={() => { void loadFoyerData(voicePilotRequest.foyerId); }} /></Suspense>}
       {/* Shared bottom iOS premium nav bar with quick actions central (+) trigger */}
       {activeModule !== 'messagerie' && (
         <BottomNav

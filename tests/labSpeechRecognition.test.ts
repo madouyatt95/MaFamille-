@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { startLabRecognition, type LabRecognition, type LabSpeechEvent } from '../src/dev/labSpeechRecognition.ts';
+import { parseFamilyLabVoice, emptyFamilyVoiceContext, type FamilyVoiceResult } from '../src/ai/local/familyVoiceDialogue.ts';
 
 class FakeRecognition implements LabRecognition {
   static instance: FakeRecognition;
@@ -62,4 +63,53 @@ test('silence du dialogue : stop borné, puis un seul résultat final', t => {
   FakeRecognition.instance.onresult?.(event([['du lait', true]]));
   t.mock.timers.tick(1601); assert.equal(FakeRecognition.instance.stopped, true); assert.equal(count, 0);
   FakeRecognition.instance.onend?.(); assert.equal(count, 1); controller.abort();
+});
+test('une erreur du parseur libere le micro et permet une nouvelle ecoute', () => {
+  let ended = 0;
+  startLabRecognition(FakeRecognition, { interim() {}, error() {}, end() { ended++; }, final() { throw new Error('parser failure'); } });
+  const recognition = FakeRecognition.instance;
+  recognition.onresult?.(event([['un pain', true]]));
+  assert.throws(() => recognition.onend?.(), /parser failure/);
+  assert.equal(ended, 1);
+  assert.equal(recognition.onresult, null);
+  const next = harness();
+  next.recognition.onresult?.(event([['deux pains', true]]));
+  next.recognition.onend?.();
+  assert.deepEqual(next.final, ['deux pains']);
+});
+test('stop sans retour du navigateur : delai puis nouvelle ecoute possible', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const h = harness();
+  h.controller.stop();
+  t.mock.timers.tick(5001);
+  assert.equal(h.ended(), 1);
+  assert.equal(h.recognition.aborted, true);
+  assert.deepEqual(h.final, []);
+  const next = harness();
+  next.recognition.onresult?.(event([['un pain', true]]));
+  next.recognition.onend?.();
+  assert.deepEqual(next.final, ['un pain']);
+});
+test('parcours vocal : dictee, correction, validation explicite puis nouvelle ecoute', () => {
+  let context = emptyFamilyVoiceContext();
+  let result: FamilyVoiceResult | undefined;
+  let ended = 0;
+  const dictate = (text: string) => {
+    startLabRecognition(FakeRecognition, { interim() {}, error(message) { assert.fail(message); }, end() { ended++; }, final(phrase) {
+      result = parseFamilyLabVoice(phrase, context, { scopeKey: 'test', now: 1000 + ended });
+      context = result.context;
+    } });
+    FakeRecognition.instance.onresult?.(event([[text, true]]));
+    FakeRecognition.instance.onend?.();
+  };
+  dictate('ajoute trois bouteilles de lait et deux pains');
+  dictate('1 pain');
+  assert.equal(result!.receipt, undefined);
+  assert.deepEqual(result!.context.grocery.proposal.map(item => item.amount.value), [3, 1]);
+  const confirmed = parseFamilyLabVoice('confirme', context, { scopeKey: 'test', now: 1100 });
+  assert.equal(confirmed.receipt!.after[1].amount.value, 1);
+  context = emptyFamilyVoiceContext();
+  dictate('ajoute deux tomates');
+  assert.equal(ended, 3);
+  assert.equal(result!.context.grocery.proposal[0].name, 'Tomates');
 });

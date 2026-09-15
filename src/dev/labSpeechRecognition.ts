@@ -65,8 +65,8 @@ export function startLabRecognition(Constructor: LabRecognitionConstructor, call
     if (!active) return;
     failed = true;
     abort();
-    callbacks.error(errors[event.error || ''] || 'Reconnaissance indisponible. Réessayez ou utilisez le texte.');
-    callbacks.end();
+    try { callbacks.error(errors[event.error || ''] || 'Reconnaissance indisponible. Réessayez ou utilisez le texte.'); }
+    finally { callbacks.end(); }
   };
   recognition.onend = () => {
     if (!active) return;
@@ -76,10 +76,13 @@ export function startLabRecognition(Constructor: LabRecognitionConstructor, call
     const transcript = entries.map(([, text]) => text).join(' ').trim();
     // Change one ambiguous segment at a time; never invent a Cartesian combination.
     const variants = entries.flatMap(([index]) => (alternatives.get(index) || []).map(value => entries.map(([key, text]) => key === index ? value : text).join(' ')));
-    if (variants.length > 4) callbacks.error('Trop de passages incertains. Répétez une phrase plus courte.');
-    else if (!failed && transcript) callbacks.final(transcript, (finalAt ?? clock()) - startedAt, [...new Set(variants)]);
-    else if (!failed) callbacks.error('Aucune transcription finale. Rien n’a été soumis.');
-    callbacks.end();
+    try {
+      if (variants.length > 4) callbacks.error('Trop de passages incertains. Répétez une phrase plus courte.');
+      else if (!failed && transcript) callbacks.final(transcript, (finalAt ?? clock()) - startedAt, [...new Set(variants)]);
+      else if (!failed) callbacks.error('Aucune transcription finale. Rien n’a été soumis.');
+    } finally {
+      callbacks.end();
+    }
   };
   try { recognition.start(); } catch { abort(); throw new Error('Le navigateur ne peut pas démarrer la reconnaissance.'); }
   if (active) timer = setTimeout(stop, 45000);
